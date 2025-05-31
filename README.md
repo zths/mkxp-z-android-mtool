@@ -1,5 +1,7 @@
 # mkxp-z for Android
 
+Fork of: [mkxp-z-android](https://github.com/thehatkid/mkxp-z-android), using in mtool.
+
 This is port of [mkxp-z](https://github.com/mkxp-z/mkxp-z) to Android.
 
 Currently, it's *almost* works properly (likely, *experemental*),
