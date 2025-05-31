@@ -1,0 +1,69 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'app.mtool.mtoolmobile.mkxpz'
+    compileSdk 33
+    signingConfigs {
+        release {
+            storeFile file("../keystore/mtool.jks")
+            storePassword "*********"
+            keyAlias "key0"
+            keyPassword "*********"
+            v1SigningEnabled true
+            v2SigningEnabled true
+            enableV3Signing true
+            enableV4Signing true
+        }
+    }
+    defaultConfig {
+        applicationId "app.mtool.mtoolmobile.mkxpz"
+        minSdk 29
+        targetSdk 29
+        versionCode 11
+        versionName "0.1.1"
+        archivesBaseName = "mkxp-z-$versionName"
+        ndk.debugSymbolLevel = 'FULL'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+
+        debug {
+            debuggable true
+            signingConfig signingConfigs.release
+            jniDebuggable true
+        }
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a'
+            universalApk true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path "jni/Android.mk"
+        }
+    }
+}
+
+dependencies {
+    implementation 'org.yaml:snakeyaml:2.2'
+    implementation 'org.mozilla.geckoview:geckoview:129.0.20240819150008'
+    implementation 'com.intuit.sdp:sdp-android:1.1.0'
+}
