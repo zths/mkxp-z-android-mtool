@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Progress overlay strings -->
+    <string name="copying_rtp_files">複製資源文件</string>
+    <string name="copying_file_progress">正在複製: %1$s</string>
+    <string name="copy_progress_format">%1$d/%2$d (%3$d%%)</string>
+    <string name="copy_complete">複製完成</string>
+    <string name="copy_failed">複製失敗</string>
+</resources>

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Main application name -->
-    <string name="app_name">mkxp-z</string>
+    <string name="app_name" translatable="false">MTool-mkxp-z</string>
+
+    <!-- Progress overlay strings -->
+    <string name="copying_rtp_files">复制资源文件</string>
+    <string name="copying_file_progress">正在复制: %1$s</string>
+    <string name="copy_progress_format">%1$d/%2$d (%3$d%%)</string>
+    <string name="copy_complete">复制完成</string>
+    <string name="copy_failed">复制失败</string>
 </resources>

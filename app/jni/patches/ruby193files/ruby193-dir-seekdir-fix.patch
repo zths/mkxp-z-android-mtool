@@ -1,0 +1,14 @@
+--- a/dir.c
++++ b/dir.c
+@@ -707,7 +707,11 @@ dir_seek(VALUE dir, VALUE pos)
+ static VALUE
+ dir_set_pos(VALUE dir, VALUE pos)
+ {
++#ifdef HAVE_SEEKDIR
+     dir_seek(dir, pos);
++#else
++    rb_f_notimplement(0, NULL, dir);
++#endif
+     return pos;
+ }
+ 

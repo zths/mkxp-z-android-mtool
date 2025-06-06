@@ -1,6 +1,6 @@
 L_PATH := $(call my-dir)
 
-# Include dependecies
+# Include dependencies
 include $(L_PATH)/SDL2/Android.mk 
 include $(L_PATH)/SDL2_image/Android.mk
 include $(L_PATH)/SDL2_ttf/Android.mk
@@ -14,7 +14,12 @@ include $(L_PATH)/physfs.mk
 include $(L_PATH)/uchardet.mk
 include $(L_PATH)/libiconv.mk
 include $(L_PATH)/openssl.mk
-include $(L_PATH)/ruby.mk
 
-# Include main library
+include $(L_PATH)/ruby.mk
 include $(L_PATH)/mkxp-z.mk
+
+include $(L_PATH)/ruby187.mk
+include $(L_PATH)/mkxp-z-187.mk
+
+include $(L_PATH)/ruby193.mk
+include $(L_PATH)/mkxp-z-193.mk

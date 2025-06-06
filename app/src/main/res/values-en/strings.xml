@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Progress overlay strings -->
+    <string name="copying_rtp_files">Copying Resource Files</string>
+    <string name="copying_file_progress">Copying: %1$s</string>
+    <string name="copy_progress_format">%1$d/%2$d (%3$d%%)</string>
+    <string name="copy_complete">Copy Complete</string>
+    <string name="copy_failed">Copy Failed</string>
+</resources>

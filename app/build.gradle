@@ -7,10 +7,10 @@ android {
     compileSdk 33
     signingConfigs {
         release {
-            storeFile file("../keystore/mtool.jks")
-            storePassword "*********"
+            storeFile file("........")
+            storePassword "............"
             keyAlias "key0"
-            keyPassword "*********"
+            keyPassword "..............."
             v1SigningEnabled true
             v2SigningEnabled true
             enableV3Signing true
@@ -20,6 +20,7 @@ android {
     defaultConfig {
         applicationId "app.mtool.mtoolmobile.mkxpz"
         minSdk 29
+        //noinspection ExpiredTargetSdkVersion
         targetSdk 29
         versionCode 11
         versionName "0.1.1"
@@ -32,6 +33,10 @@ android {
             minifyEnabled false
             signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            lintOptions {
+                abortOnError false
+                disable 'ExpiredTargetSdkVersion'
+            }
         }
 
         debug {
@@ -45,8 +50,9 @@ android {
         abi {
             enable true
             reset()
+            // You can build also 'x86' and 'x86_64' if you want (useful for AVD debugging) 'armeabi-v7a'
             include 'arm64-v8a'
-            universalApk true
+            universalApk false
         }
     }
 
@@ -63,6 +69,7 @@ android {
 }
 
 dependencies {
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'org.yaml:snakeyaml:2.2'
     implementation 'org.mozilla.geckoview:geckoview:129.0.20240819150008'
     implementation 'com.intuit.sdp:sdp-android:1.1.0'

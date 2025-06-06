@@ -1,7 +1,16 @@
-ARCH     :=linux-x86_64
-NDK       := ${ANDROID_NDK_HOME}
-TOOLCHAIN := $(NDK)/toolchains/llvm/prebuilt/${ARCH}
+ARCH     := linux-x86_64
+NDK       := $(ANDROID_NDK_HOME)
+TOOLCHAIN := $(NDK)/toolchains/llvm/prebuilt/$(ARCH)
 NPROC     := $(shell nproc)
+
+# Check if NDK path is set
+#ifeq ($(NDK),)
+#$(error ANDROID_NDK_HOME is not set. Please set it to your NDK installation path)
+#endif
+
+# Build directory
+BUILD_ROOT := $(PWD)
+BUILD_PREFIX := $(BUILD_ROOT)/build-$(ABI)
 
 # Android platform API version to build:
 # (Default: 21 - Android 5.0 Lollipop)
@@ -96,6 +105,33 @@ CMAKE_ARGS := \
 	-DCMAKE_C_FLAGS="$(CFLAGS)" \
 	-G "Unix Makefiles"
 
+# RVM Ruby version management - use bash explicitly
+SHELL := /bin/bash
+RVM_SCRIPT := source /usr/share/rvm/scripts/rvm
+RUBY_187_ENV := $(RVM_SCRIPT) && rvm use 1.8.7
+RUBY_193_ENV := $(RVM_SCRIPT) && rvm use 1.9.3 && \
+	export CC="$(CC)" && \
+	export CFLAGS="$(CFLAGS)" && \
+	export LDFLAGS="$(LDFLAGS)" && \
+	export LDSHARED="$(CC) -shared"
+RUBY_31_ENV := $(RVM_SCRIPT) && rvm use 3.1.3
+
+# Host configurations for different Ruby versions
+# Ruby 1.8.7 and 1.9.3 don't support Android, use eabi instead
+ifeq ($(ABI), armeabi-v7a)
+	HOST_187 := arm-linux-eabi
+	HOST_193 := arm-linux-eabi
+else ifeq ($(ABI), arm64-v8a)
+	HOST_187 := arm-linux-eabi
+	HOST_193 := arm-linux-eabi
+else ifeq ($(ABI), x86)
+	HOST_187 := i686-linux-gnu
+	HOST_193 := i686-linux-gnu
+else ifeq ($(ABI), x86_64)
+	HOST_187 := x86_64-linux-gnu
+	HOST_193 := x86_64-linux-gnu
+endif
+
 # Autoconf environment variables
 CONFIGURE_ENV := \
 	CC="$(CC)" CXX="$(CXX)" AS="$(AS)" LD="$(LD)" AR="$(AR)" NM="$(NM)" \
@@ -134,10 +170,19 @@ CONFIGURE := $(CONFIGURE_ENV) ./configure $(CONFIGURE_ARGS)
 CMAKE     := $(CONFIGURE_ENV) cmake .. $(CMAKE_ARGS)
 
 
-.PHONY: all init clean iconv openal openssl ruby clean-iconv clean-openal clean-openssl clean-ruby
+.PHONY: all init clean iconv openal openssl ruby ruby187 ruby193 clean-iconv clean-openal clean-openssl clean-ruby clean-ruby187 clean-ruby193 bison clean-bison
 
 default: all
 
+
+# -------------------- Bison 2.x --------------------
+bison: init $(BUILD_PREFIX)/bin/bison
+
+$(BUILD_PREFIX)/bin/bison: bison-2.7.1/Makefile
+	cd bison-2.7.1; make -j$(NPROC); make install
+
+bison-2.7.1/Makefile: bison-2.7.1/configure
+	cd bison-2.7.1; ./configure --prefix="$(BUILD_PREFIX)" --disable-nls
 
 # -------------------- iconv --------------------
 iconv: init $(LIBDIR)/libiconv.a
@@ -162,10 +207,20 @@ openal/cmakebuild/Makefile: openal/CMakeLists.txt
 openssl: init $(LIBDIR)/libssl.a
 
 $(LIBDIR)/libssl.a: openssl/Makefile
-	cd openssl; make -j$(NPROC); make install_sw
+	cd openssl; PATH="$(TOOLCHAIN)/bin:$$PATH" \
+	CC="$(PREFIX)-clang" CXX="$(PREFIX)-clang++" \
+	AR="llvm-ar" RANLIB="llvm-ranlib" STRIP="llvm-strip" \
+	make -j$(NPROC); \
+	PATH="$(TOOLCHAIN)/bin:$$PATH" \
+	CC="$(PREFIX)-clang" CXX="$(PREFIX)-clang++" \
+	AR="llvm-ar" RANLIB="llvm-ranlib" STRIP="llvm-strip" \
+	make install_sw
 
 openssl/Makefile: openssl/Configure
-	cd openssl; CFLAGS="-Wno-macro-redefined" ./Configure $(OPENSSL_TARGET) \
+	cd openssl; PATH="$(TOOLCHAIN)/bin:$$PATH" \
+	CC="$(PREFIX)-clang" CXX="$(PREFIX)-clang++" \
+	AR="llvm-ar" RANLIB="llvm-ranlib" STRIP="llvm-strip" \
+	CFLAGS="-Wno-macro-redefined" ./Configure $(OPENSSL_TARGET) \
 	no-shared -D__ANDROID_API__=$(API) \
 	--prefix="$(BUILD_PREFIX)" --openssldir="$(BUILD_PREFIX)"
 
@@ -173,14 +228,66 @@ openssl/Makefile: openssl/Configure
 ruby: init openssl $(LIBDIR)/libruby.so.3.1.0
 
 $(LIBDIR)/libruby.so.3.1.0: ruby/Makefile
-	cd ruby; make -j$(NPROC); make install
+	cd ruby; $(RUBY_31_ENV) && make -j$(NPROC); $(RUBY_31_ENV) && make install
+	cd $(LIBDIR); ln -sf libruby.so.3.1.3 libruby313.so
+
 
 ruby/Makefile: ruby/configure
 	cd ruby; DLDFLAGS="-Wl,-soname,libruby.so" \
 	$(CONFIGURE) $(RUBY_CONFIGURE_ARGS)
 
 ruby/configure: ruby/configure.ac
-	cd ruby; autoreconf -i
+	cd ruby; $(RUBY_31_ENV) && autoreconf -i
+
+# -------------------- Ruby 1.8.7 --------------------
+ruby187: init openssl $(LIBDIR)/libruby187.so
+
+$(LIBDIR)/libruby187.so: ruby187/Makefile
+	cd ruby187; $(RUBY_187_ENV) && make -j$(NPROC); $(RUBY_187_ENV) && make install
+	cd $(LIBDIR); ln -sf libruby.so.1.8.7 libruby187.so
+
+ruby187/Makefile: ruby187/configure
+	cd ruby187; DLDFLAGS="-Wl,-soname,libruby187.so" \
+	CC="$(CC)" CXX="$(CXX)" AS="$(AS)" LD="$(LD)" AR="$(AR)" NM="$(NM)" \
+	RANLIB="$(RANLIB)" STRIP="$(STRIP)" OBJCOPY="$(OBJCOPY)" OBJDUMP="$(OBJDUMP)" \
+	CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" CLANG_FLAGS="$(CLANG_FLAGS)" \
+	PKG_CONFIG_LIBDIR="$(PKG_CONFIG_LIBDIR)" \
+	LDSHARED="$(CC) -shared" \
+	./configure --host=$(HOST_187) --prefix="$(BUILD_PREFIX)" \
+	--includedir="$(BUILD_PREFIX)/include/ruby-1.8.7" \
+	ac_cv_header_pwd_h=no ac_cv_header_langinfo_h=no \
+	$(RUBY_CONFIGURE_ARGS) --program-suffix=187
+
+ruby187/configure: ruby187/configure.in
+	cd ruby187; $(RUBY_187_ENV) && autoreconf -i
+
+# -------------------- Ruby 1.9.3 --------------------
+#export CFLAGS="-O2 -pipe -U_FORTIFY_SOURCE"
+#export CPPFLAGS="$CFLAGS"
+#export CXXFLAGS="$CFLAGS"
+#rvm install 1.9.3
+ruby193: init openssl $(LIBDIR)/libruby193.so
+
+$(LIBDIR)/libruby193.so: ruby193/Makefile
+	cd ruby193; $(RUBY_193_ENV) && make -j$(NPROC); $(RUBY_193_ENV) && make install
+	cd $(LIBDIR); ln -sf libruby.so.1.9.1 libruby193.so
+
+ruby193/Makefile: ruby193/configure
+	cd ruby193; DLDFLAGS="-Wl,-soname,libruby193.so" \
+	CC="$(CC)" CXX="$(CXX)" AS="$(AS)" LD="$(LD)" AR="$(AR)" NM="$(NM)" \
+	RANLIB="$(RANLIB)" STRIP="$(STRIP)" OBJCOPY="$(OBJCOPY)" OBJDUMP="$(OBJDUMP)" \
+	CFLAGS="$(CFLAGS) -U_FORTIFY_SOURCE" LDFLAGS="$(LDFLAGS)" CLANG_FLAGS="$(CLANG_FLAGS)" \
+	PKG_CONFIG_LIBDIR="$(PKG_CONFIG_LIBDIR)" \
+	LDSHARED="$(CC) -shared" \
+	LIBS="-lz -lm -ldl" \
+	./configure --host=$(HOST_193) --prefix="$(BUILD_PREFIX)" \
+	--includedir="$(BUILD_PREFIX)/include/ruby-1.9.3" \
+	--with-baseruby=ruby \
+	ac_cv_header_pwd_h=no ac_cv_header_langinfo_h=no \
+	$(RUBY_CONFIGURE_ARGS) --program-suffix=193
+
+ruby193/configure: ruby193/configure.in
+	cd ruby193; $(RUBY_193_ENV) && autoreconf -i
 
 
 init:
@@ -198,6 +305,16 @@ clean-openssl:
 clean-ruby:
 	-cd ruby; make clean; rm Makefile; rm configure
 
-clean: clean-iconv clean-openal clean-openssl clean-ruby
+clean-ruby187:
+	-cd ruby187; make clean; rm Makefile; rm configure
 
-all: iconv openal openssl ruby
+clean-ruby193:
+	-cd ruby193; make clean; rm Makefile; rm configure
+
+clean-bison:
+	-cd bison-2.7.1; make clean
+
+
+clean: clean-iconv clean-openal clean-openssl clean-ruby clean-ruby187 clean-ruby193 clean-bison
+
+all: iconv openal openssl ruby ruby187 ruby193 bison

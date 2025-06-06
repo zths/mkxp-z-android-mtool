@@ -5,6 +5,7 @@ import org.libsdl.app.SDL;
 import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLAudioManager;
 import org.libsdl.app.SDLClipboardHandler;
+import org.libsdl.app.SDLControllerManager;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -13,6 +14,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.Manifest;
 import android.view.ActionMode;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -31,8 +33,16 @@ import android.content.res.Configuration;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Dictionary;
+import java.util.HashMap;
 
 public class MKXPZActivity extends SDLActivity {
     private static String GAME_PATH = Environment.getExternalStorageDirectory() + "/mkxp-z"; //SDL2 Jni 调用需要的游戏路径
@@ -42,6 +52,43 @@ public class MKXPZActivity extends SDLActivity {
     private static final int CONTEXT_MODE = Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY;
     public static Class<?> mtoolViewManagerClass = null;
     public static Method justKillMeAndBringUpMTOOL = null;
+    public static Method sendKeyEventToSender = null;
+    public boolean realStarted = false; // 是否已经完成初始化
+    public static int usingRubyVersion = 193; // 使用的 Ruby 版本，默认使用 Ruby 3.1.3
+    public static String[] ruby187Libs = new String[]{
+            "SDL2",
+            "SDL2_image",
+            "SDL2_ttf",
+            "SDL2_sound",
+            "openal",
+            "ruby187",
+            "mkxp-z-187"
+    };
+    public static String[] ruby193Libs = new String[]{
+            "SDL2",
+            "SDL2_image",
+            "SDL2_ttf",
+            "SDL2_sound",
+            "openal",
+            "ruby193",
+            "mkxp-z-193"
+    };
+    public static String[] ruby313Libs = new String[]{
+            "SDL2",
+            "SDL2_image",
+            "SDL2_ttf",
+            "SDL2_sound",
+            "openal",
+            "ruby313",
+            "mkxp-z"
+    };
+    public static HashMap<Integer, String[]> rubyVersions = new HashMap<Integer, String[]>() {
+        {
+            put(187, ruby187Libs);
+            put(193, ruby193Libs);
+            put(313, ruby313Libs);
+        }
+    }; // 使用的 Ruby 版本
 
     // 远程类实例的反射引用
     private Object mtoolViewManager;
@@ -66,6 +113,18 @@ public class MKXPZActivity extends SDLActivity {
             return remoteClassLoader;
         }
         return null;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (sendKeyEventToSender != null) {
+            try {
+                sendKeyEventToSender.invoke(null, event);
+            } catch (Exception e) {
+                Log.e(TAG, "发送按键事件失败", e);
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     class vInputRecv implements Window.Callback {
@@ -96,6 +155,37 @@ public class MKXPZActivity extends SDLActivity {
 
         @Override
         public boolean dispatchGenericMotionEvent(MotionEvent event) {
+            float x, y;
+            int action;
+
+            switch (event.getSource()) {
+                case InputDevice.SOURCE_JOYSTICK:
+                    return SDLControllerManager.handleJoystickMotionEvent(event);
+
+                case InputDevice.SOURCE_MOUSE:
+                    action = event.getActionMasked();
+                    switch (action) {
+                        case MotionEvent.ACTION_SCROLL:
+                            x = event.getAxisValue(MotionEvent.AXIS_HSCROLL, 0);
+                            y = event.getAxisValue(MotionEvent.AXIS_VSCROLL, 0);
+                            SDLActivity.onNativeMouse(0, action, x, y, false);
+                            return true;
+
+                        case MotionEvent.ACTION_HOVER_MOVE:
+                            x = event.getX(0);
+                            y = event.getY(0);
+
+                            SDLActivity.onNativeMouse(0, action, x, y, false);
+                            return true;
+
+                        default:
+                            break;
+                    }
+                    break;
+
+                default:
+                    break;
+            }
             return false;
         }
 
@@ -192,20 +282,136 @@ public class MKXPZActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         checkAndRequestPermissions();
+    }
+
+    /**
+     * This method returns the name of the shared object with the application entry point
+     * It can be overridden by derived classes.
+     */
+    @Override
+    protected String getMainSharedObject() {
+        String library;
+        String[] libraries = this.getLibraries();
+        library = "lib" + libraries[libraries.length - 1] + ".so";
+        return getContext().getApplicationInfo().nativeLibraryDir + "/" + library;
+    }
+
+    /**
+     * This method is called by SDL before loading the native shared libraries.
+     * It can be overridden to provide names of shared libraries to be loaded.
+     * The default implementation returns the defaults. It never returns null.
+     * An array returned by a new implementation must at least contain "SDL2".
+     * Also keep in mind that the order the libraries are loaded may matter.
+     *
+     * @return names of shared libraries to be loaded (e.g. "SDL2", "main").
+     */
+    @Override
+    protected String[] getLibraries() {
+        return rubyVersions.getOrDefault(usingRubyVersion, ruby313Libs);
+    }
+
+    boolean initing = false;
+
+    void realInit() {
+        if (initing) {
+            return;
+        }
+        initing = true;
+
+        String externalStoragePath = Environment.getExternalStorageDirectory().getAbsolutePath();
+        String rtpInitDonePath = externalStoragePath + "/MTool/RTP/RTPInitDone_v1";
+        if (!new File(rtpInitDonePath).exists()) {
+            // 创建全屏遮罩用于展示进度
+            final ViewGroup rootView = (ViewGroup) getWindow().getDecorView().getRootView();
+            final View progressOverlay = getLayoutInflater().inflate(R.layout.progress_overlay, null);
+
+            final TextView tvProgressFile = progressOverlay.findViewById(R.id.tv_progress_file);
+            final TextView tvProgressPercent = progressOverlay.findViewById(R.id.tv_progress_percent);
+            final ProgressBar progressBar = progressOverlay.findViewById(R.id.progress_bar);
+
+            // 将进度遮罩添加到根视图
+            final RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.MATCH_PARENT,
+                    RelativeLayout.LayoutParams.MATCH_PARENT);
+            rootView.addView(progressOverlay, params);
+
+            Log.i(TAG, "开始复制RTP资源文件到: " + externalStoragePath + "/MTool/RTP");
+
+            AssetsManager.copyAssets(this, "RTP", externalStoragePath + "/MTool/RTP", new AssetsManager.CopyProgressCallback() {
+                @Override
+                public void onStart(int totalFiles) {
+                    runOnUiThread(() -> {
+                        progressBar.setMax(100);
+                        progressBar.setProgress(0);
+                        tvProgressPercent.setText(getString(R.string.copy_progress_format, 0, totalFiles, 0));
+                        Log.i(TAG, "开始复制文件，共 " + totalFiles + " 个文件");
+                    });
+                }
+
+                @Override
+                public void onProgress(String currentFile, int progress, int currentCount, int totalFiles) {
+                    runOnUiThread(() -> {
+                        tvProgressFile.setText(getString(R.string.copying_file_progress, currentFile));
+                        tvProgressPercent.setText(getString(R.string.copy_progress_format, currentCount, totalFiles, progress));
+                        progressBar.setProgress(progress);
+                        Log.i(TAG, "复制进度: " + currentCount + "/" + totalFiles + " (" + progress + "%)");
+                    });
+                }
+
+                @Override
+                public void onFinish(boolean success) {
+                    runOnUiThread(() -> {
+                        // 移除进度遮罩
+                        rootView.removeView(progressOverlay);
+
+                        // 显示复制结果
+                        Toast.makeText(MKXPZActivity.this,
+                                success ? R.string.copy_complete : R.string.copy_failed,
+                                Toast.LENGTH_SHORT).show();
+
+                        Log.i(TAG, "文件复制" + (success ? "完成" : "失败"));
+
+                        try {
+                            if (success) {
+                                new File(rtpInitDonePath).createNewFile();
+                            }
+                        } catch (IOException e) {
+                            Log.e(TAG, "创建标记文件失败", e);
+                            throw new RuntimeException(e);
+                        }
+
+                        initing = false;
+                        initGame();
+                    });
+                }
+            });
+            return;
+        }
+        initing = false;
+        initGame();
+    }
+
+    void initGame() {
+        //在这里做个全屏遮罩
+        AssetsManager.copyAssets(this, "RTP", Environment.getExternalStorageDirectory() + "/MTool/RTP", null);
         try {
             // 加载MToolViewManager类
-            mtoolViewManagerClass = getRemoteClassLoader().loadClass(
-                    "app.mtool.mtoolmobile.mtool.managers.MToolViewManager");
+            mtoolViewManagerClass = getRemoteClassLoader().loadClass("app.mtool.mtoolmobile.mtool.managers.MToolViewManager");
             justKillMeAndBringUpMTOOL = mtoolViewManagerClass.getMethod("justKillMeAndBringUpMTOOL", Activity.class);
+            sendKeyEventToSender = mtoolViewManagerClass.getMethod("sendKeyEventToSender", KeyEvent.class);
             try {
                 GAME_PATH = PackageContextHelper.readFileFromOtherApp(this, "node/mtoolWebRoot/mkxpz_game_path");
                 SERVER_PORT = Integer.parseInt(PackageContextHelper.readFileFromOtherApp(this, "node/serverURI").split(":")[1]);
+                usingRubyVersion = Integer.parseInt(PackageContextHelper.readFileFromOtherApp(this, "node/mtoolWebRoot/mkxpz_rubyVersion"));
                 Log.v(TAG, "游戏路径: " + GAME_PATH);
+                Log.v(TAG, "Ruby Version: " + usingRubyVersion);
             } catch (Exception e) {
-                finishAndRemoveTask();   // 结束当前 Activity 并把所属 Task 从最近任务里删掉
+                Log.e(TAG, "读取游戏路径或端口失败，可能是 MTool 服务未在运行", e);
                 justKillMeAndBringUpMTOOL.invoke(null, this);
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
+                return;
             }
             //super.onCreate(savedInstanceState);
             try {
@@ -220,7 +426,7 @@ public class MKXPZActivity extends SDLActivity {
             Log.v(TAG, "Device: " + Build.DEVICE);
             Log.v(TAG, "Model: " + Build.MODEL);
             Log.v(TAG, "onCreate()");
-            super.onCreate(savedInstanceState);
+
             SDLAudioManager.setContext(this);
             try {
                 Thread.currentThread().setName("SDLActivity");
@@ -351,6 +557,13 @@ public class MKXPZActivity extends SDLActivity {
                     SDLActivity.onNativeDropFile(filename);
                 }
             }
+            realStarted = true;
+            if (mHIDDeviceManager != null) {
+                mHIDDeviceManager.setFrozen(false);
+            }
+            //if (!mHasMultiWindow) {
+            resumeNativeThread();
+            //}
             Log.e(TAG, "OnCreate Done");
         } catch (Exception e) {
             Log.e(TAG, "OnCreate Error: " + e, e);
@@ -362,7 +575,7 @@ public class MKXPZActivity extends SDLActivity {
     /**
      * 释放游戏视图
      */
-    public void releaseGameView() {
+    public void releaseGameView() {// 反射调用
         try {
             justKillMeAndBringUpMTOOL.invoke(null, this);
         } catch (Exception e) {
@@ -373,7 +586,7 @@ public class MKXPZActivity extends SDLActivity {
     /**
      * 处理游戏初始化
      */
-    public boolean handleGameInit(String startArgsString) {
+    public boolean handleGameInit(String startArgsString) {// 反射调用
         try {
             if (startArgsString.startsWith("MTool_Game_Init_GeckoView:")) {
                 String startUrl = startArgsString.substring("MTool_Game_Init_GeckoView:".length());
@@ -390,10 +603,6 @@ public class MKXPZActivity extends SDLActivity {
                 Method getRootLayoutMethod = uiManagerClass.getMethod("getRootLayout");
                 Object rootLayout = getRootLayoutMethod.invoke(uiManager);
 
-
-                // 设置游戏视图
-                //Method setGameViewMethod = uiManagerClass.getMethod("setGameView", View.class);
-                //setGameViewMethod.invoke(uiManager, gameView);
 
                 return true;
             }
@@ -480,10 +689,14 @@ public class MKXPZActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        try {
-            //initMToolViewManager();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        if (realStarted) {
+            Log.v(TAG, "onResume()");
+            if (mHIDDeviceManager != null) {
+                mHIDDeviceManager.setFrozen(false);
+            }
+            //if (!mHasMultiWindow) {
+            resumeNativeThread();
+            //}
         }
         try {
             // 调用MToolViewManager的onResume方法
@@ -519,7 +732,6 @@ public class MKXPZActivity extends SDLActivity {
 
     @Override
     public void onRequestPermissionsResult(final int requestCode, final String[] permissions, final int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             // 只有当权限被拒绝时才显示提示
             if (grantResults.length > 0) {
@@ -538,10 +750,10 @@ public class MKXPZActivity extends SDLActivity {
                     Log.d(TAG, "部分权限被拒绝");
                 } else {
                     Log.d(TAG, "所有权限已授予");
+                    realInit();
                 }
             }
-        } else {
-            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            return;
         }
 
         try {
@@ -560,6 +772,7 @@ public class MKXPZActivity extends SDLActivity {
         } catch (Exception e) {
             Log.e(TAG, "处理权限请求结果失败", e);
         }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override
@@ -612,7 +825,16 @@ public class MKXPZActivity extends SDLActivity {
                     },
                     PERMISSION_REQUEST_CODE);
         } else {
-            Log.d(TAG, "Android 6-10: 已有文件读写权限");
+            Log.d(TAG, "已有文件读写权限");
+            realInit();
         }
+    }
+
+    static void setFPSVisibility(boolean on) {
+
+    }
+
+    static void updateFPSText(int fps) {
+
     }
 }

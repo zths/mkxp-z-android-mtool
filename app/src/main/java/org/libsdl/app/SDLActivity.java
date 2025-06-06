@@ -248,7 +248,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         if (libraries.length > 0) {
             library = "lib" + libraries[libraries.length - 1] + ".so";
         } else {
-            library = "libmkxp-z.so";
+            library = "libmkxp-z-187.so";
         }
         return getContext().getApplicationInfo().nativeLibraryDir + "/" + library;
     }
@@ -276,8 +276,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
                 "SDL2_ttf",
                 "SDL2_sound",
                 "openal",
-                "ruby",
-                "mkxp-z"
+                "ruby187",
+                "mkxp-z-187"
         };
     }
 
@@ -322,114 +322,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     // Setup
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.v(TAG, "Device: " + Build.DEVICE);
-        Log.v(TAG, "Model: " + Build.MODEL);
-        Log.v(TAG, "onCreate()");
         super.onCreate(savedInstanceState);
-        SDLAudioManager.setContext(this);
-        try {
-            Thread.currentThread().setName("SDLActivity");
-        } catch (Exception e) {
-            Log.v(TAG, "modify thread properties failed " + e.toString());
-        }
-
-        // Load shared libraries
-        String errorMsgBrokenLib = "";
-        try {
-            loadLibraries();
-            mBrokenLibraries = false; /* success */
-        } catch(UnsatisfiedLinkError e) {
-            System.err.println(e.getMessage());
-            mBrokenLibraries = true;
-            errorMsgBrokenLib = e.getMessage();
-        } catch(Exception e) {
-            System.err.println(e.getMessage());
-            mBrokenLibraries = true;
-            errorMsgBrokenLib = e.getMessage();
-        }
-
-        if (!mBrokenLibraries) {
-            String expected_version = String.valueOf(SDL_MAJOR_VERSION) + "." +
-                    String.valueOf(SDL_MINOR_VERSION) + "." +
-                    String.valueOf(SDL_MICRO_VERSION);
-            String version = nativeGetVersion();
-            if (!version.equals(expected_version)) {
-                mBrokenLibraries = true;
-                errorMsgBrokenLib = "SDL C/Java version mismatch (expected " + expected_version + ", got " + version + ")";
-            }
-        }
-
-        if (mBrokenLibraries) {
-            mSingleton = this;
-            AlertDialog.Builder dlgAlert  = new AlertDialog.Builder(this);
-            dlgAlert.setMessage("An error occurred while trying to start the application. Please try again and/or reinstall."
-                    + System.getProperty("line.separator")
-                    + System.getProperty("line.separator")
-                    + "Error: " + errorMsgBrokenLib);
-            dlgAlert.setTitle("SDL Error");
-            dlgAlert.setPositiveButton("Exit",
-                    new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog,int id) {
-                            // if this button is clicked, close current activity
-                            SDLActivity.mSingleton.finish();
-                        }
-                    });
-            dlgAlert.setCancelable(false);
-            dlgAlert.create().show();
-
-            return;
-        }
-
-        // Set up JNI
-        SDL.setupJNI();
-
-        // Initialize state
-        SDL.initialize();
-
-        // So we can call stuff from static callbacks
-        mSingleton = this;
-        SDL.setContext(this);
-
-        mClipboardHandler = new SDLClipboardHandler();
-
-        mHIDDeviceManager = HIDDeviceManager.acquire(this);
-
-        // Set up the surface
-        mSurface = createSDLSurface(getApplication());
-
-        mLayout = new RelativeLayout(this);
-        mLayout.addView(mSurface);
-
-        // Get our current screen orientation and pass it down.
-        mCurrentOrientation = SDLActivity.getCurrentOrientation();
-        // Only record current orientation
-        SDLActivity.onNativeOrientationChanged(mCurrentOrientation);
-
-        try {
-            if (Build.VERSION.SDK_INT < 24 /* Android 7.0 (N) */) {
-                mCurrentLocale = getContext().getResources().getConfiguration().locale;
-            } else {
-                mCurrentLocale = getContext().getResources().getConfiguration().getLocales().get(0);
-            }
-        } catch(Exception ignored) {
-        }
-
-        setContentView(mLayout);
-
-        setWindowStyle(false);
-
-        getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(this);
-
-        // Get filename from "Open with" of another application
-        Intent intent = getIntent();
-        if (intent != null && intent.getData() != null) {
-            String filename = intent.getData().getPath();
-            if (filename != null) {
-                Log.v(TAG, "Got filename: " + filename);
-                SDLActivity.onNativeDropFile(filename);
-            }
-        }
     }
 
     protected void pauseNativeThread() {
@@ -470,15 +363,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
 
     @Override
     protected void onResume() {
-        Log.v(TAG, "onResume()");
         super.onResume();
-
-        if (mHIDDeviceManager != null) {
-            mHIDDeviceManager.setFrozen(false);
-        }
-        //if (!mHasMultiWindow) {
-            resumeNativeThread();
-        //}
     }
 
     @Override

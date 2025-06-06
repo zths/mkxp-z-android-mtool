@@ -1,0 +1,54 @@
+diff --git a/common.mk b/common.mk
+index 2e57492..2c4c3cc 100644
+--- a/common.mk
++++ b/common.mk
+@@ -543,16 +543,16 @@ $(ENC_MK): $(srcdir)/enc/make_encmake.rb $(srcdir)/enc/Makefile.in $(srcdir)/enc
+ 
+ PHONY:
+ 
+-{$(VPATH)}parse.c: {$(VPATH)}parse.y $(srcdir)/tool/ytab.sed
+-parse.h {$(VPATH)}parse.h: {$(VPATH)}parse.c
++# {$(VPATH)}parse.c: {$(VPATH)}parse.y $(srcdir)/tool/ytab.sed
++# parse.h {$(VPATH)}parse.h: {$(VPATH)}parse.c
+ 
+-{$(srcdir)}.y.c:
+-	$(YACC) -d $(YFLAGS) -o y.tab.c $(SRC_FILE)
+-	sed -f $(srcdir)/tool/ytab.sed -e "/^#/s!y\.tab\.c!$@!" y.tab.c > $@.new
+-	@$(MV) $@.new $@
+-	sed -e "/^#line.*y\.tab\.h/d;/^#line.*parse\.y/d" y.tab.h > $(@:.c=.h).new
+-	@$(IFCHANGE) $(@:.c=.h) $(@:.c=.h).new
+-	@$(RM) y.tab.c y.tab.h
++# {$(srcdir)}.y.c:
++# 	$(YACC) -d $(YFLAGS) -o y.tab.c $(SRC_FILE)
++# 	sed -f $(srcdir)/tool/ytab.sed -e "/^#/s!y\.tab\.c!$@!" y.tab.c > $@.new
++# 	@$(MV) $@.new $@
++# 	sed -e "/^#line.*y\.tab\.h/d;/^#line.*parse\.y/d" y.tab.h > $(@:.c=.h).new
++# 	@$(IFCHANGE) $(@:.c=.h) $(@:.c=.h).new
++# 	@$(RM) y.tab.c y.tab.h
+ 
+ acosh.$(OBJEXT): {$(VPATH)}acosh.c
+ alloca.$(OBJEXT): {$(VPATH)}alloca.c {$(VPATH)}config.h
+@@ -663,7 +663,7 @@ pack.$(OBJEXT): {$(VPATH)}pack.c $(RUBY_H_INCLUDES) {$(VPATH)}encoding.h \
+ parse.$(OBJEXT): {$(VPATH)}parse.c $(RUBY_H_INCLUDES) {$(VPATH)}node.h \
+   $(ENCODING_H_INCLUDES) $(ID_H_INCLUDES) {$(VPATH)}regenc.h \
+   {$(VPATH)}regex.h {$(VPATH)}util.h {$(VPATH)}lex.c \
+-  {$(VPATH)}defs/keywords {$(VPATH)}id.c {$(VPATH)}parse.y \
++  {$(VPATH)}defs/keywords {$(VPATH)}id.c \
+   {$(VPATH)}parse.h \
+   {$(VPATH)}internal.h
+ proc.$(OBJEXT): {$(VPATH)}proc.c {$(VPATH)}eval_intern.h \
+@@ -860,10 +860,10 @@ $(REVISION_H): $(srcdir)/version.h $(srcdir)/ChangeLog $(srcdir)/tool/file2lastr
+ 	@-$(BASERUBY) $(srcdir)/tool/file2lastrev.rb --revision.h "$(srcdir)" > "$(srcdir)/revision.tmp"
+ 	@$(IFCHANGE) "--timestamp=$@" "$(srcdir)/revision.h" "$(srcdir)/revision.tmp"
+ 
+-$(srcdir)/ext/ripper/ripper.c: parse.y
+-	$(ECHO) generating $@
+-	$(Q) $(CHDIR) $(@D) && $(exec) $(MAKE) -f depend $(MFLAGS) \
+-		Q=$(Q) ECHO=$(ECHO) top_srcdir=../.. srcdir=. RUBY="$(BASERUBY)"
++# $(srcdir)/ext/ripper/ripper.c: parse.y
++# 	$(ECHO) generating $@
++# 	$(Q) $(CHDIR) $(@D) && $(exec) $(MAKE) -f depend $(MFLAGS) \
++# 		Q=$(Q) ECHO=$(ECHO) top_srcdir=../.. srcdir=. RUBY="$(BASERUBY)"
+ 
+ $(srcdir)/ext/json/parser/parser.c: $(srcdir)/ext/json/parser/parser.rl
+ 	$(ECHO) generating $@

@@ -91,8 +91,43 @@ fi
 
 # Ruby 3.1.3 (patched for mkxp-z)
 if [[ ! -d "ruby" ]]; then
-  echo "Downloading Ruby..."
+  echo "Downloading Ruby 3.1.3 (patched for mkxp-z)..."
   git clone $GIT_ARGS -b mkxp-z-3.1.3 https://github.com/mkxp-z/ruby ruby
 fi
 
+# Ruby 1.8.7
+if [[ ! -d "ruby_187" ]]; then
+  echo "Downloading Ruby 1.8.7..."
+  git clone $GIT_ARGS -b ruby_1_8_7 https://github.com/mkxp-z/ruby ruby187
+fi
+cd ruby187
+patch -p1 < ../patches/ruby187-remove-inline.patch
+
+# Ruby 1.9.3
+if [[ ! -d "ruby_193" ]]; then
+  echo "Downloading Ruby 1.9.3..."
+  git clone $GIT_ARGS -b ruby_1_9_3 https://github.com/ruby/ruby ruby193
+  #wget https://cache.ruby-lang.org/pub/ruby/1.9/ruby-1.9.3-p551.tar.gz -O ruby-1.9.3-p551.tar.gz
+  #tar -xzf ruby-1.9.3-p551.tar.gz
+  #mv ruby-1.9.3-p551 ruby193
+fi
+
+cd ruby193
+patch -p1 < ../patches/ruby193files/GH-488.patch
+patch -p1 < ../patches/ruby193files/CVE-2015-1855-p484.patch
+patch -p1 < ../patches/ruby193files/update-autoconf.patch
+#patch -p1 < ../patches/ruby193files/opensslv11x.patch
+#patch -p1 < ../patches/ruby193files/opensslv30.patch
+patch -p1 < ../patches/ruby193files/openssl3.patch
+patch -p1 < ../patches/ruby193files/ruby193-dir-seekdir-fix.patch
+cd ..
+cp patches/ruby193files/parse.h ruby193/parse.h
+cp patches/ruby193files/parse.c ruby193/parse.c
+cp patches/ruby193files/ripper.c ruby193/ext/ripper/ripper.c
+cp patches/ruby193files/zlib.c ruby193/zlib.c
+cp patches/ruby193files/inits.c ruby193/inits.c
+cp patches/ruby193files/common.mk ruby193/common.mk
+cp patches/ruby193files/uncommon.mk ruby193/uncommon.mk
+rm -rf ruby193/ext/zlib
+rm -f ruby193/ext/ripper/ripper.y
 echo "Done!"
