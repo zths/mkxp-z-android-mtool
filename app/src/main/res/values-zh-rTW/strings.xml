@@ -6,4 +6,16 @@
     <string name="copy_progress_format">%1$d/%2$d (%3$d%%)</string>
     <string name="copy_complete">複製完成</string>
     <string name="copy_failed">複製失敗</string>
+
+    <!-- Loading status strings -->
+    <string name="loading_complete">載入完成</string>
+    <string name="loading_init_ruby">初始化Ruby解釋器</string>
+    <string name="loading_scripts">載入腳本文件</string>
+    <string name="loading_extract_data">解壓腳本數據</string>
+    <string name="loading_exec_preload">執行預載入腳本</string>
+    <string name="loading_wait_first_frame">遊戲腳本已接管載入流程, 正在等待首幀</string>
+    <string name="loading_init_path_cache">初始化路徑緩存 (若遊戲很大, 可能需要一段時間)</string>
+    <string name="loading_failed">載入失敗</string>
+    <string name="loading_generic">載入中...</string>
+    <string name="loading_init_game">初始化遊戲環境...</string>
 </resources>

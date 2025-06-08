@@ -6,4 +6,16 @@
     <string name="copy_progress_format">%1$d/%2$d (%3$d%%)</string>
     <string name="copy_complete">Copy Complete</string>
     <string name="copy_failed">Copy Failed</string>
+
+    <!-- Loading status strings -->
+    <string name="loading_complete">Loading Complete</string>
+    <string name="loading_init_ruby">Initializing Ruby Interpreter</string>
+    <string name="loading_scripts">Loading Script Files</string>
+    <string name="loading_extract_data">Extracting Script Data</string>
+    <string name="loading_exec_preload">Executing Preload Scripts</string>
+    <string name="loading_wait_first_frame">Game script has taken over loading process, waiting for first frame</string>
+    <string name="loading_init_path_cache">Initializing path cache (may take a while if the game is large)</string>
+    <string name="loading_failed">Loading Failed</string>
+    <string name="loading_generic">Loading...</string>
+    <string name="loading_init_game">Initializing game environment...</string>
 </resources>

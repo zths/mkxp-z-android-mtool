@@ -9,11 +9,14 @@ import org.libsdl.app.SDLControllerManager;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.pm.ActivityInfo;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.Manifest;
 import android.view.ActionMode;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -22,6 +25,7 @@ import android.view.SearchEvent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 import android.os.Environment;
 import android.content.Intent;
@@ -283,6 +287,7 @@ public class MKXPZActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         // 保存实例引用，供JNI调用
         instance = this;
         checkAndRequestPermissions();
@@ -386,7 +391,7 @@ public class MKXPZActivity extends SDLActivity {
 
     void initGame() {
         //在这里创建全屏遮罩用于显示加载状态
-        createOverlay(false, "游戏加载中");
+        createOverlay(false, getString(R.string.loading_init_game));
 
         AssetsManager.copyAssets(this, "RTP", Environment.getExternalStorageDirectory() + "/MTool/RTP", null);
         try {
@@ -846,10 +851,41 @@ public class MKXPZActivity extends SDLActivity {
     private TextView tvOverlayPercent;
     private ProgressBar overlayProgressBar;
 
+    // FPS显示相关
+    private static TextView fpsTextView;
+
+    /**
+     * 设置FPS显示的可见性
+     * 被JNI调用
+     *
+     * @param on 是否显示FPS
+     */
+    static void setFPSVisibility(boolean on) {
+        if (fpsTextView == null && instance != null) {
+            instance.initFPSView();
+        }
+        if (fpsTextView != null) {
+            fpsTextView.post(() -> fpsTextView.setVisibility(on ? View.VISIBLE : View.GONE));
+        }
+    }
+
+    /**
+     * 更新FPS数值
+     * 被JNI调用
+     *
+     * @param fps 当前帧率
+     */
+    static void updateFPSText(int fps) {
+        if (fpsTextView != null) {
+            fpsTextView.post(() -> fpsTextView.setText("FPS: " + fps));
+        }
+    }
+
     /**
      * 创建覆盖层显示，可以用作加载状态或进度显示
+     *
      * @param isProgress 是否是进度模式（如文件复制），否则为加载状态模式
-     * @param title 要显示的标题
+     * @param title      要显示的标题
      */
     private void createOverlay(boolean isProgress, String title) {
         final ViewGroup rootView = (ViewGroup) getWindow().getDecorView().getRootView();
@@ -883,7 +919,7 @@ public class MKXPZActivity extends SDLActivity {
             tvOverlayFile.setVisibility(View.GONE);
             tvOverlayPercent.setVisibility(View.GONE);
             overlayProgressBar.setIndeterminate(true);
-            tvOverlayStatus.setText("初始化游戏环境...");
+            tvOverlayStatus.setText(getString(R.string.loading_init_game));
         }
 
         // 添加到根视图
@@ -911,7 +947,8 @@ public class MKXPZActivity extends SDLActivity {
 
     /**
      * 更新加载状态
-     * @param statusCode 状态码: 0表示加载完成，其他值从loadingStatusMap中查询
+     *
+     * @param statusCode 状态码: 0表示加载完成，其他值从对应的字符串资源获取
      */
     public static void updateLoadingStatus(int statusCode) {
         if (instance == null) {
@@ -927,11 +964,41 @@ public class MKXPZActivity extends SDLActivity {
             } else {
                 // 确保遮罩已创建
                 if (instance.loadingOverlay == null) {
-                    instance.createOverlay(false, "初始化游戏环境...");
+                    instance.createOverlay(false, instance.getString(R.string.loading_init_game));
+                }
+                if (instance.loadingOverlay == null) {
+                    return;
                 }
 
                 // 更新状态文本
-                String statusText = loadingStatusMap.getOrDefault(statusCode, "加载中...");
+                String statusText;
+                switch (statusCode) {
+                    case 1:
+                        statusText = instance.getString(R.string.loading_init_ruby);
+                        break;
+                    case 2:
+                        statusText = instance.getString(R.string.loading_scripts);
+                        break;
+                    case 3:
+                        statusText = instance.getString(R.string.loading_extract_data);
+                        break;
+                    case 4:
+                        statusText = instance.getString(R.string.loading_exec_preload);
+                        break;
+                    case 5:
+                        statusText = instance.getString(R.string.loading_wait_first_frame);
+                        break;
+                    case 6:
+                        statusText = instance.getString(R.string.loading_init_path_cache);
+                        break;
+                    case 10:
+                        statusText = instance.getString(R.string.loading_failed);
+                        break;
+                    default:
+                        statusText = instance.getString(R.string.loading_generic);
+                        break;
+                }
+
                 if (instance.tvOverlayStatus != null) {
                     instance.tvOverlayStatus.setText(statusText);
                     Log.i(TAG, "更新加载状态: " + statusText);
@@ -948,12 +1015,35 @@ public class MKXPZActivity extends SDLActivity {
         updateLoadingStatus(statusCode);
     }
 
-    static void setFPSVisibility(boolean on) {
+    /**
+     * 初始化FPS显示视图
+     */
+    private void initFPSView() {
+        final ViewGroup rootView = (ViewGroup) getWindow().getDecorView().getRootView();
 
+        // 创建FPS文本视图
+        fpsTextView = new TextView(this);
+        fpsTextView.setText("FPS: --");
+        fpsTextView.setTextColor(Color.YELLOW);
+        fpsTextView.setTextSize(14);
+        fpsTextView.setPadding(20, 20, 20, 20);
+
+        // 设置为不可点击，并允许点击穿透
+        fpsTextView.setClickable(false);
+        fpsTextView.setFocusable(false);
+
+        // 设置初始状态为隐藏
+        fpsTextView.setVisibility(View.GONE);
+
+        // 设置布局参数，放在右上角
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.gravity = Gravity.TOP | Gravity.END;
+        params.topMargin = 50;
+        params.rightMargin = 20;
+
+        // 添加到根视图
+        rootView.post(() -> rootView.addView(fpsTextView, params));
     }
-
-    static void updateFPSText(int fps) {
-
-    }
-
 }
