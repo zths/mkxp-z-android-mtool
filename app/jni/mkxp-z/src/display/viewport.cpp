@@ -23,7 +23,7 @@
 
 #include "sharedstate.h"
 #include "etc.h"
-#include "util.h"
+#include "src/util/util.h"
 #include "quad.h"
 #include "glstate.h"
 #include "graphics.h"

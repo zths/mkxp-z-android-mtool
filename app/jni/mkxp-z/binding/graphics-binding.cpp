@@ -33,7 +33,7 @@ RB_METHOD(graphicsDelta) {
     GFX_UNLOCK;
     return ret;
 }
-
+#include "MtoolProc.h"
 RB_METHOD_GUARD(graphicsUpdate)
 {
     RB_UNUSED_PARAM;
@@ -45,6 +45,7 @@ RB_METHOD_GUARD(graphicsUpdate)
 #else
     shState->graphics().update();
 #endif
+    MtoolProc::staticCall();
     return Qnil;
 }
 RB_METHOD_GUARD_END

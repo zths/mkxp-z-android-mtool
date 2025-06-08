@@ -22,9 +22,11 @@
 #ifndef ETC_TYPES_H
 #define ETC_TYPES_H
 
-#include "util.h"
+#include "../util/util.h"
 
 #include <SDL_rect.h>
+#include <vector>
+
 
 struct Vec2
 {

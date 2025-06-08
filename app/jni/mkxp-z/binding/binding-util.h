@@ -42,6 +42,34 @@
 #endif
 #define RAPI_FULL ((RAPI_MAJOR * 100) + (RAPI_MINOR * 10) + RAPI_TEENY)
 
+// Ruby版本兼容性函数
+#if RAPI_FULL <= 187
+// Ruby 1.8.7版本的兼容性定义
+static inline VALUE compat_rb_errinfo(void) {
+  return ruby_errinfo;
+}
+
+static inline void compat_rb_set_errinfo(VALUE err) {
+  ruby_errinfo = err;
+}
+
+static inline VALUE compat_rb_str_new_cstr(const char* str) {
+    return rb_str_new2(str);
+}
+
+#define rb_errinfo() compat_rb_errinfo()
+#define rb_set_errinfo(err) compat_rb_set_errinfo(err)
+#define rb_str_new_cstr(str) compat_rb_str_new_cstr(str)
+
+#elif RAPI_FULL >= 190 && RAPI_FULL < 220
+// Ruby 1.9.x版本的兼容性定义
+// rb_str_new_cstr在1.9.x中可用，但为了保险起见，检查是否存在
+#ifndef rb_str_new_cstr
+#define rb_str_new_cstr(str) rb_str_new2(str)
+#endif
+
+#endif
+
 enum RbException {
     RGSS = 0,
     Reset,
@@ -560,7 +588,7 @@ if (NIL_P(propObj))                                                        \
 prop = 0;                                                                \
 else                                                                       \
 prop = getPrivateDataCheck<PropKlass>(propObj, #PropKlass);              \
-k->set##PropName(prop)                                                     \
+k->set##PropName(prop);                                                     \
 rb_iv_set(self, prop_iv, propObj);                                         \
 return propObj;                                                            \
 }                                                                          \
@@ -597,8 +625,8 @@ rb_check_argc(argc, 1);                                                    \
 Klass *k = getPrivateData<Klass>(self);                                    \
 VALUE propObj = *argv;                                                     \
 PropKlass *prop;                                                           \
-prop = getPrivateDataCheck<PropKlass>(propObj, #PropKlass);                \
-k->set##PropName(*prop);                                                   \
+            prop = getPrivateDataCheck<PropKlass>(propObj, #PropKlass);                \
+            k->set##PropName(*prop);                                                   \
 return propObj;                                                            \
 }                                                                          \
 RB_METHOD_GUARD_END

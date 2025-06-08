@@ -226,6 +226,15 @@ int main(int argc, char *argv[])
 #ifdef MKXPZ_BUILD_ANDROID
 	// Set application window orientation to landscape
 	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+
+    // 初始化JNI环境
+    JNIEnv *envld = (JNIEnv *)SDL_AndroidGetJNIEnv();
+    if (envld) {
+        MtoolProc::initJNI(envld);
+    }
+
+    // 通知初始化开始
+    MtoolProc::notifyLoadingStatus(1);
 #endif
 
 #ifdef GLES2_HEADER
@@ -613,3 +622,4 @@ static SDL_GLContext initGL(SDL_Window *win, Config &conf, RGSSThreadData *threa
 
 	return glCtx;
 }
+

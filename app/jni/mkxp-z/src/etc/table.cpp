@@ -26,7 +26,8 @@
 
 #include "serial-util.h"
 #include "exception.h"
-#include "util.h"
+#include "src/util/util.h"
+
 
 /* Init normally */
 Table::Table(int x, int y /*= 1*/, int z /*= 1*/)

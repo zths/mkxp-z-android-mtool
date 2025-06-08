@@ -21,8 +21,9 @@
 
 #include "audiostream.h"
 
-#include "util.h"
+#include "src/util/util.h"
 #include "exception.h"
+
 
 #include <SDL_mutex.h>
 #include <SDL_thread.h>

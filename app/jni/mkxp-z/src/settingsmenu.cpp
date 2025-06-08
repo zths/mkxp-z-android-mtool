@@ -33,7 +33,8 @@
 #include "font.h"
 #include "input.h"
 #include "etc-internal.h"
-#include "util.h"
+#include "src/util/util.h"
+
 
 #include <algorithm>
 #include <assert.h>

@@ -22,7 +22,8 @@
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
-#include "util.h"
+#include "src/util/util.h"
+
 
 class Scene;
 class Bitmap;

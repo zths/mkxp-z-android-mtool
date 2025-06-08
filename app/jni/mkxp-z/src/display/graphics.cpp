@@ -42,9 +42,10 @@
 #include "sharedstate.h"
 #include "texpool.h"
 #include "theoraplay/theoraplay.h"
-#include "util.h"
+#include "src/util/util.h"
 #include "input.h"
 #include "sprite.h"
+
 
 #include <SDL.h>
 #include <SDL_image.h>

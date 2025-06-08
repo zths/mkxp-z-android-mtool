@@ -24,9 +24,10 @@
 #include "sharedstate.h"
 #include "filesystem.h"
 #include "exception.h"
-#include "config.h"
-#include "util.h"
+#include "src/config.h"
+#include "src/util/util.h"
 #include "debugwriter.h"
+
 
 #include <SDL_sound.h>
 

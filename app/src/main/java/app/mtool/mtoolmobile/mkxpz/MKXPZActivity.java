@@ -283,6 +283,8 @@ public class MKXPZActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 保存实例引用，供JNI调用
+        instance = this;
         checkAndRequestPermissions();
     }
 
@@ -323,19 +325,8 @@ public class MKXPZActivity extends SDLActivity {
         String externalStoragePath = Environment.getExternalStorageDirectory().getAbsolutePath();
         String rtpInitDonePath = externalStoragePath + "/MTool/RTP/RTPInitDone_v1";
         if (!new File(rtpInitDonePath).exists()) {
-            // 创建全屏遮罩用于展示进度
-            final ViewGroup rootView = (ViewGroup) getWindow().getDecorView().getRootView();
-            final View progressOverlay = getLayoutInflater().inflate(R.layout.progress_overlay, null);
-
-            final TextView tvProgressFile = progressOverlay.findViewById(R.id.tv_progress_file);
-            final TextView tvProgressPercent = progressOverlay.findViewById(R.id.tv_progress_percent);
-            final ProgressBar progressBar = progressOverlay.findViewById(R.id.progress_bar);
-
-            // 将进度遮罩添加到根视图
-            final RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.MATCH_PARENT,
-                    RelativeLayout.LayoutParams.MATCH_PARENT);
-            rootView.addView(progressOverlay, params);
+            // 创建进度模式的覆盖层
+            createOverlay(true, getString(R.string.copying_rtp_files));
 
             Log.i(TAG, "开始复制RTP资源文件到: " + externalStoragePath + "/MTool/RTP");
 
@@ -343,9 +334,9 @@ public class MKXPZActivity extends SDLActivity {
                 @Override
                 public void onStart(int totalFiles) {
                     runOnUiThread(() -> {
-                        progressBar.setMax(100);
-                        progressBar.setProgress(0);
-                        tvProgressPercent.setText(getString(R.string.copy_progress_format, 0, totalFiles, 0));
+                        overlayProgressBar.setMax(100);
+                        overlayProgressBar.setProgress(0);
+                        tvOverlayPercent.setText(getString(R.string.copy_progress_format, 0, totalFiles, 0));
                         Log.i(TAG, "开始复制文件，共 " + totalFiles + " 个文件");
                     });
                 }
@@ -353,9 +344,9 @@ public class MKXPZActivity extends SDLActivity {
                 @Override
                 public void onProgress(String currentFile, int progress, int currentCount, int totalFiles) {
                     runOnUiThread(() -> {
-                        tvProgressFile.setText(getString(R.string.copying_file_progress, currentFile));
-                        tvProgressPercent.setText(getString(R.string.copy_progress_format, currentCount, totalFiles, progress));
-                        progressBar.setProgress(progress);
+                        tvOverlayFile.setText(getString(R.string.copying_file_progress, currentFile));
+                        tvOverlayPercent.setText(getString(R.string.copy_progress_format, currentCount, totalFiles, progress));
+                        overlayProgressBar.setProgress(progress);
                         Log.i(TAG, "复制进度: " + currentCount + "/" + totalFiles + " (" + progress + "%)");
                     });
                 }
@@ -363,8 +354,8 @@ public class MKXPZActivity extends SDLActivity {
                 @Override
                 public void onFinish(boolean success) {
                     runOnUiThread(() -> {
-                        // 移除进度遮罩
-                        rootView.removeView(progressOverlay);
+                        // 移除覆盖层
+                        removeOverlay();
 
                         // 显示复制结果
                         Toast.makeText(MKXPZActivity.this,
@@ -394,7 +385,9 @@ public class MKXPZActivity extends SDLActivity {
     }
 
     void initGame() {
-        //在这里做个全屏遮罩
+        //在这里创建全屏遮罩用于显示加载状态
+        createOverlay(false, "游戏加载中");
+
         AssetsManager.copyAssets(this, "RTP", Environment.getExternalStorageDirectory() + "/MTool/RTP", null);
         try {
             // 加载MToolViewManager类
@@ -830,6 +823,131 @@ public class MKXPZActivity extends SDLActivity {
         }
     }
 
+    // 静态实例引用，用于JNI调用
+    private static MKXPZActivity instance;
+
+    // 加载状态映射
+    private static final HashMap<Integer, String> loadingStatusMap = new HashMap<Integer, String>() {{
+        put(0, "加载完成");
+        put(1, "初始化Ruby解释器");
+        put(2, "加载脚本文件");
+        put(3, "解压脚本数据");
+        put(4, "执行预加载脚本");
+        put(5, "游戏脚本已接管加载流程, 正在等待首帧");
+        put(6, "初始化路径缓存 (若游戏很大, 可能需要一段时间)");
+        put(10, "加载失败");
+    }};
+
+    // 加载状态UI组件
+    private View loadingOverlay;
+    private TextView tvOverlayTitle;
+    private TextView tvOverlayFile;
+    private TextView tvOverlayStatus;
+    private TextView tvOverlayPercent;
+    private ProgressBar overlayProgressBar;
+
+    /**
+     * 创建覆盖层显示，可以用作加载状态或进度显示
+     * @param isProgress 是否是进度模式（如文件复制），否则为加载状态模式
+     * @param title 要显示的标题
+     */
+    private void createOverlay(boolean isProgress, String title) {
+        final ViewGroup rootView = (ViewGroup) getWindow().getDecorView().getRootView();
+
+        // 检查是否已经有覆盖层
+        if (loadingOverlay != null && loadingOverlay.getParent() != null) {
+            ((ViewGroup) loadingOverlay.getParent()).removeView(loadingOverlay);
+        }
+
+        // 通过通用布局文件加载覆盖层
+        loadingOverlay = getLayoutInflater().inflate(R.layout.general_overlay, null);
+
+        // 获取UI组件引用
+        tvOverlayTitle = loadingOverlay.findViewById(R.id.tv_overlay_title);
+        tvOverlayFile = loadingOverlay.findViewById(R.id.tv_overlay_file);
+        tvOverlayStatus = loadingOverlay.findViewById(R.id.tv_overlay_status);
+        tvOverlayPercent = loadingOverlay.findViewById(R.id.tv_overlay_percent);
+        overlayProgressBar = loadingOverlay.findViewById(R.id.overlay_progress_bar);
+
+        // 根据模式设置UI
+        if (isProgress) {
+            // 进度模式 - 显示文件名和百分比
+            tvOverlayTitle.setText(title);
+            tvOverlayFile.setVisibility(View.VISIBLE);
+            tvOverlayPercent.setVisibility(View.VISIBLE);
+            overlayProgressBar.setIndeterminate(false);
+            tvOverlayStatus.setVisibility(View.GONE);
+        } else {
+            // 加载状态模式
+            tvOverlayTitle.setText(title);
+            tvOverlayFile.setVisibility(View.GONE);
+            tvOverlayPercent.setVisibility(View.GONE);
+            overlayProgressBar.setIndeterminate(true);
+            tvOverlayStatus.setText("初始化游戏环境...");
+        }
+
+        // 添加到根视图
+        final RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT);
+        rootView.addView(loadingOverlay, params);
+
+        Log.i(TAG, "创建覆盖层: " + (isProgress ? "进度模式" : "加载状态模式"));
+    }
+
+    /**
+     * 移除覆盖层
+     */
+    private void removeOverlay() {
+        runOnUiThread(() -> {
+            if (loadingOverlay != null && loadingOverlay.getParent() != null) {
+                ViewGroup parent = (ViewGroup) loadingOverlay.getParent();
+                parent.removeView(loadingOverlay);
+                loadingOverlay = null;
+                Log.i(TAG, "移除覆盖层");
+            }
+        });
+    }
+
+    /**
+     * 更新加载状态
+     * @param statusCode 状态码: 0表示加载完成，其他值从loadingStatusMap中查询
+     */
+    public static void updateLoadingStatus(int statusCode) {
+        if (instance == null) {
+            Log.e(TAG, "无法更新加载状态: 实例为空");
+            return;
+        }
+
+        instance.runOnUiThread(() -> {
+            if (statusCode == 0) {
+                // 加载完成，移除遮罩
+                instance.removeOverlay();
+                Log.i(TAG, "游戏加载完成");
+            } else {
+                // 确保遮罩已创建
+                if (instance.loadingOverlay == null) {
+                    instance.createOverlay(false, "初始化游戏环境...");
+                }
+
+                // 更新状态文本
+                String statusText = loadingStatusMap.getOrDefault(statusCode, "加载中...");
+                if (instance.tvOverlayStatus != null) {
+                    instance.tvOverlayStatus.setText(statusText);
+                    Log.i(TAG, "更新加载状态: " + statusText);
+                }
+            }
+        });
+    }
+
+    /**
+     * JNI调用的静态方法，用于通知游戏加载状态
+     */
+    public static void notifyLoadingStatus(int statusCode) {
+        Log.i(TAG, "收到加载状态通知: " + statusCode);
+        updateLoadingStatus(statusCode);
+    }
+
     static void setFPSVisibility(boolean on) {
 
     }
@@ -837,4 +955,5 @@ public class MKXPZActivity extends SDLActivity {
     static void updateFPSText(int fps) {
 
     }
+
 }

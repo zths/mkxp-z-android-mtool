@@ -21,8 +21,8 @@
 
 #include "keybindings.h"
 
-#include "config.h"
-#include "util.h"
+#include "src/config.h"
+#include "src/util/util.h"
 
 #include <stdio.h>
 

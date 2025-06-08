@@ -31,7 +31,7 @@
 #include "sharedstate.h"
 #include "glstate.h"
 #include "texpool.h"
-#include "util.h"
+#include "src/util/util.h"
 
 #include <assert.h>
 #include <vector>

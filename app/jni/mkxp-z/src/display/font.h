@@ -23,7 +23,7 @@
 #define FONT_H
 
 #include "etc.h"
-#include "util.h"
+#include "src/util/util.h"
 
 #include <vector>
 #include <string>

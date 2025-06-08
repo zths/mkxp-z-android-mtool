@@ -12,6 +12,18 @@
 #include <jni.h>
 #endif
 
+typedef long int vptr;
+struct RGSSEvalStruct
+{
+    std::condition_variable cv;
+    std::mutex mux;
+    std::unique_lock<std::mutex> lck = std::unique_lock<std::mutex>(mux);
+    char*  script;
+    vptr  ret;
+    bool   retUTF8Str;
+    bool   evalDone;
+    bool   free;
+};
 // 前向声明
 class MToolClientImpl;
 

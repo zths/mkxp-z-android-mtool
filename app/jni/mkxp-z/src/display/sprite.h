@@ -26,7 +26,7 @@
 #include "flashable.h"
 #include "disposable.h"
 #include "viewport.h"
-#include "util.h"
+#include "src/util/util.h"
 
 class Bitmap;
 struct Color;

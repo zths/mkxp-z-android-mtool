@@ -25,7 +25,7 @@
 #include "gl-fun.h"
 #include "etc-internal.h"
 #include "sharedstate.h"
-#include "config.h"
+#include "src/config.h"
 
 /* Struct wrapping GLuint for some light type safety */
 #define DEF_GL_ID \

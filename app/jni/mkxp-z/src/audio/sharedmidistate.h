@@ -22,7 +22,7 @@
 #ifndef SHAREDMIDISTATE_H
 #define SHAREDMIDISTATE_H
 
-#include "config.h"
+#include "src/config.h"
 #include "debugwriter.h"
 #include "fluid-fun.h"
 

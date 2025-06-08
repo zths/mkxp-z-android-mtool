@@ -707,8 +707,23 @@ void FileSystem::openRead(OpenHandler &handler, const char *filename) {
      * and manually iterate over them */
     const std::vector<std::string> &fileList = p->fileLists[dir];
 
-    for (size_t i = 0; i < fileList.size(); ++i)
-      openReadEnumCB(&data, dir, fileList[i].c_str());
+    for (size_t i = 0; i < fileList.size(); ++i) {
+        openReadEnumCB(&data, dir, fileList[i].c_str());
+    }
+    if (data.matchCount == 0 && !data.physfsError) {
+      PHYSFS_File *handle = PHYSFS_openRead(normalize(filename_nm.c_str(), 0, 0).c_str());
+      if (!handle) {
+        throw Exception(Exception::NoFileError, "%s", filename_nm.c_str());
+      }
+      initReadOps(handle, data.ops, false);
+      const char *ext = findExt(filename_nm.c_str());
+
+      if (data.handler.tryRead(data.ops, ext)) {
+        data.stopSearching = true;
+      }
+      ++data.matchCount;
+      return;
+    }
   } else {
     PHYSFS_enumerate(dir, openReadEnumCB, &data);
   }
@@ -751,3 +766,5 @@ const char *FileSystem::desensitize(const char *filename) {
     return p->pathCache[fn_lower].c_str();
   return filename;
 }
+
+

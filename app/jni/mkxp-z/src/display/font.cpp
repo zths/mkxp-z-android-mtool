@@ -25,8 +25,8 @@
 #include "filesystem.h"
 #include "exception.h"
 #include "boost-hash.h"
-#include "util.h"
-#include "config.h"
+#include "src/util/util.h"
+#include "src/config.h"
 
 #include "debugwriter.h"
 

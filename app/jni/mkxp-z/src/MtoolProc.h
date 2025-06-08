@@ -10,8 +10,19 @@
 #include <condition_variable>
 #include <atomic>
 #include "MToolClient.h"
+
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
+
+// 解决Ruby 1.9.3头文件与json.hpp的strtod冲突
+#ifdef strtod
+#undef strtod
+#endif
+
 #include "json.hpp"
 extern int MtoolServerport;
+
 struct MTOOL_WsTask
 {
     long taskid;
@@ -23,9 +34,21 @@ struct MTOOL_WsTask
 class MtoolProc {
 public:
     MtoolProc();
+    static MtoolProc* instance;
+    static void staticCall();
+
+#ifdef __ANDROID__
+    // JNI 方法：通知 Java 层加载状态
+    static void notifyLoadingStatus(int statusCode);
+    // JNI 环境初始化
+    static void initJNI(JNIEnv* env);
+    static JavaVM* javaVM;
+    static jclass activityClass;
+    static jmethodID notifyLoadingStatusMethod;
+#endif
 
     bool trsLoaded;
-    void onEventLoop();
+
     nlohmann::json doTask(std::string cmd, nlohmann::json args, long timeoutMS = 0);
 private:
     bool m_initialized = false;
@@ -34,7 +57,7 @@ private:
     MToolClient* m_client;
 
     void init();
-
+    void onEventLoop();
     void handleTextMessage(const std::string& message);
     void handleBinaryMessage(const std::vector<uint8_t>& data);
     void handleError(const std::string& error);
@@ -43,6 +66,7 @@ private:
 
     std::string processTask(nlohmann::json j);
 };
-
+extern MtoolProc *mtoolProc;
 
 #endif //MKXP_Z_MTOOLPROC_H
+

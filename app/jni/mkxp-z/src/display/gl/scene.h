@@ -22,7 +22,7 @@
 #ifndef SCENE_H
 #define SCENE_H
 
-#include "util.h"
+#include "src/util/util.h"
 #include "intrulist.h"
 #include "etc.h"
 #include "etc-internal.h"

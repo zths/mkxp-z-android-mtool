@@ -36,6 +36,7 @@ typedef void (APIENTRYP _PFNGLCLEARPROC) (GLbitfield mask);
 typedef const GLubyte * (APIENTRYP _PFNGLGETSTRINGPROC) (GLenum name);
 typedef void (APIENTRYP _PFNGLGETINTEGERVPROC) (GLenum pname, GLint *params);
 typedef void (APIENTRYP _PFNGLPIXELSTOREIPROC) (GLenum pname, GLint param);
+typedef void (APIENTRYP _PFNGLFLUSHPROC) (void);
 typedef void (APIENTRYP _PFNGLREADPIXELSPROC) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
 typedef void (APIENTRYP _PFNGLENABLEPROC) (GLenum cap);
 typedef void (APIENTRYP _PFNGLDISABLEPROC) (GLenum cap);
@@ -133,6 +134,7 @@ typedef void (APIENTRYP _PFNGLRELEASESHADERCOMPILERPROC) (void);
 	GL_FUN(GetString, _PFNGLGETSTRINGPROC) \
 	GL_FUN(GetIntegerv, _PFNGLGETINTEGERVPROC) \
 	GL_FUN(PixelStorei, _PFNGLPIXELSTOREIPROC) \
+	GL_FUN(Flush, _PFNGLFLUSHPROC) \
 	GL_FUN(ReadPixels, _PFNGLREADPIXELSPROC) \
 	GL_FUN(Enable, _PFNGLENABLEPROC) \
 	GL_FUN(Disable, _PFNGLDISABLEPROC) \

@@ -64,6 +64,7 @@ extern "C" {
 #include <SDL_loadso.h>
 #include <SDL_power.h>
 
+
 extern const char module_rpg1[];
 extern const char module_rpg2[];
 extern const char module_rpg3[];
@@ -253,16 +254,200 @@ static void mriBindingInit() {
         _rb_define_module_function(rb_mKernel, "caller", _kernelCaller);
     }
 
+  if (rgssVer == 1 || rgssVer == 2 || rgssVer == 3) {
+    int state = 0;
+    const char* module_code = nullptr;
+
     if (rgssVer == 1)
-        rb_eval_string(module_rpg1);
+      module_code = module_rpg1;
     else if (rgssVer == 2)
-        rb_eval_string(module_rpg2);
-    else if (rgssVer == 3)
-        rb_eval_string(module_rpg3);
-    else
-        assert(!"unreachable");
+      module_code = module_rpg2;
+    else /* rgssVer == 3 */
+      module_code = module_rpg3;
+
+    rb_eval_string_protect(module_code, &state);
+
+    if (state) {
+      // 获取异常信息
+      VALUE exc = rb_errinfo();
+      VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
+      VALUE bt = rb_funcall2(exc, rb_intern("backtrace"), 0, NULL);
+      VALUE excClass = rb_class_path(rb_obj_class(exc));
+
+      Debug() << "加载RPG模块失败 (RGSS" << rgssVer << ")";
+      Debug() << "错误类型: " << StringValueCStr(excClass);
+      Debug() << "错误信息: " << StringValueCStr(msg);
+
+      // 打印回溯信息的前几行
+      if (!NIL_P(bt) && RB_TYPE_P(bt, RUBY_T_ARRAY) && RARRAY_LEN(bt) > 0) {
+        Debug() << "回溯信息:";
+        for (long i = 0; i < RARRAY_LEN(bt) && i < 5; ++i) {
+          VALUE line = rb_ary_entry(bt, i);
+          Debug() << "  " << StringValueCStr(line);
+        }
+      }
+
+      // 清除异常状态
+#if RAPI_FULL > 187
+      rb_set_errinfo(Qnil);
+#else
+      ruby_errinfo = Qnil;
+#endif
+    }
+  } else {
+    assert(!"unreachable");
+  }
 
     VALUE mod = rb_define_module("System");
+
+    // 全面检查Ruby解释器的基本状态
+    Debug() << "Ruby VM检查开始 -----------------";
+    Debug() << "Ruby版本: " << ruby_description;
+
+    // 检查常见的Ruby核心类是否可用
+    VALUE str_class = rb_const_get(rb_cObject, rb_intern("String"));
+    VALUE arr_class = rb_const_get(rb_cObject, rb_intern("Array"));
+    VALUE hash_class = rb_const_get(rb_cObject, rb_intern("Hash"));
+
+    Debug() << "核心类检查: String=" << (NIL_P(str_class) ? "nil" : "ok")
+            << ", Array=" << (NIL_P(arr_class) ? "nil" : "ok")
+            << ", Hash=" << (NIL_P(hash_class) ? "nil" : "ok");
+
+    // 检查 System 模块是否正确定义 - C API 方式
+    VALUE system_module_check = rb_const_get(rb_cObject, rb_intern("System"));
+    if (NIL_P(system_module_check)) {
+        Debug() << "System 模块定义失败 (C API 检查)";
+    } else {
+        Debug() << "System 模块定义成功 (C API 检查)";
+
+        // 检验模块是否具有正确的内部ID
+        Debug() << "模块对象比较: " << (system_module_check == mod ? "相同" : "不同");
+        Debug() << "模块类型检查: " << (RB_TYPE_P(system_module_check, T_MODULE) ? "正确(Module)" : "错误");
+    }
+
+    // 尝试获取模块对象ID，这可以帮助检查对象是否有效
+    Debug() << "System模块对象ID: " << NUM2LL(rb_obj_id(mod));
+
+    // 直接检查 mod 的值是否有效
+    if (NIL_P(mod)) {
+        Debug() << "System 模块定义失败 (mod 对象检查)";
+    } else {
+        Debug() << "System 模块定义成功 (mod 对象检查)";
+
+        // 检查是否可以在模块上安全调用方法
+        int err = 0;
+        VALUE ret = rb_protect([](VALUE arg) -> VALUE {
+            return rb_funcall(arg, rb_intern("name"), 0);
+        }, (VALUE)mod, &err);
+
+        if (err) {
+            VALUE exc = rb_errinfo();
+            VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
+            VALUE exc_class = rb_class_path(rb_obj_class(exc));
+            Debug() << "调用name方法出错: " << StringValueCStr(exc_class) << ": " << StringValueCStr(msg);
+            rb_set_errinfo(Qnil); // 清除错误状态
+        } else if (NIL_P(ret)) {
+            Debug() << "模块名称调用返回nil (可能表明Ruby内部状态异常)";
+        } else if (RB_TYPE_P(ret, T_STRING)) {
+            Debug() << "模块名称: " << StringValueCStr(ret);
+        } else {
+            Debug() << "模块名称类型异常: " << rb_obj_classname(ret);
+        }
+
+        // 尝试执行一段简单的Ruby代码
+        int eval_state;
+        rb_eval_string_protect("$__test_global = 'Ruby解释器正常工作'", &eval_state);
+        if (eval_state) {
+            Debug() << "简单Ruby代码执行失败 (解释器可能已损坏)";
+        } else {
+            VALUE test_global = rb_gv_get("$__test_global");
+            if (NIL_P(test_global)) {
+                Debug() << "全局变量设置失败 (解释器状态异常)";
+            } else {
+                Debug() << "全局变量测试: " << StringValueCStr(test_global);
+            }
+        }
+
+        // 使用Ruby代码检查System模块 - 分步执行并详细输出
+        Debug() << "开始分步Ruby检查...";
+
+        // 步骤1: 检查Object是否存在
+        eval_state = 0;
+        VALUE result1 = rb_eval_string_protect("defined?(Object) ? 'Object存在' : 'Object不存在'", &eval_state);
+        if (eval_state || NIL_P(result1)) {
+            Debug() << "步骤1失败: 无法检查Object是否存在";
+        } else {
+            Debug() << "步骤1结果: " << StringValueCStr(result1);
+        }
+
+        // 步骤2: 检查Object.constants是否包含:System
+        eval_state = 0;
+        VALUE result2 = rb_eval_string_protect(
+            "begin; "
+            "  Object.constants.include?(:System) ? 'System常量存在于Object中' : 'System常量不存在于Object中'; "
+            "rescue Exception => e; "
+            "  \"检查失败: #{e.class}: #{e.message}\"; "
+            "end",
+            &eval_state);
+        if (eval_state || NIL_P(result2)) {
+            Debug() << "步骤2失败: 无法检查Object.constants";
+        } else {
+            Debug() << "步骤2结果: " << StringValueCStr(result2);
+        }
+
+        // 步骤3: 直接使用System
+        eval_state = 0;
+        VALUE result3 = rb_eval_string_protect(
+            "begin; "
+            "  defined?(System) ? \"System直接可用: #{System.class}\" : 'System直接不可用'; "
+            "rescue Exception => e; "
+            "  \"直接访问失败: #{e.class}: #{e.message}\"; "
+            "end",
+            &eval_state);
+        if (eval_state || NIL_P(result3)) {
+            Debug() << "步骤3失败: 无法直接访问System";
+        } else {
+            Debug() << "步骤3结果: " << StringValueCStr(result3);
+        }
+
+        // 步骤4: 尝试在System上调用方法
+        eval_state = 0;
+        VALUE result4 = rb_eval_string_protect(
+            "begin; "
+            "  if defined?(System); "
+            "    \"System.methods前5个: #{System.methods[0..4].inspect}\"; "
+            "  else; "
+            "    'System不可用，无法调用方法'; "
+            "  end; "
+            "rescue Exception => e; "
+            "  \"访问System.methods失败: #{e.class}: #{e.message}\"; "
+            "end",
+            &eval_state);
+        if (eval_state || NIL_P(result4)) {
+            Debug() << "步骤4失败: 无法访问System.methods";
+        } else {
+            Debug() << "步骤4结果: " << StringValueCStr(result4);
+        }
+
+        // 尝试获取Object的类名
+        eval_state = 0;
+        VALUE result5 = rb_eval_string_protect(
+            "begin; "
+            "  \"原始Object类型: #{Object.class}\"; "
+            "rescue Exception => e; "
+            "  \"获取Object类型失败: #{e.class}: #{e.message}\"; "
+            "end",
+            &eval_state);
+        if (eval_state || NIL_P(result5)) {
+            Debug() << "无法获取Object的类型";
+        } else {
+            Debug() << "Object类型: " << StringValueCStr(result5);
+        }
+
+        Debug() << "分步Ruby检查结束";
+    }
+    Debug() << "Ruby VM检查结束 -----------------";
+
     _rb_define_module_function(mod, "delta", mkxpDelta);
     _rb_define_module_function(mod, "uptime", mkxpDelta);
     _rb_define_module_function(mod, "data_directory", mkxpDataDirectory);
@@ -331,14 +516,45 @@ static void mriBindingInit() {
     rb_define_const(mod, "VERSION", vers);
 
     // Automatically load zlib if it's present -- the correct way this time
-    int state;
-    rb_eval_string_protect("require('zlib') if !Kernel.const_defined?(:Zlib)", &state);
-    if (state) {
-        Debug()
-                << "Could not load Zlib. If this is important, make sure Ruby was built with static extensions, or that"
-                << ((MKXPZ_PLATFORM == MKXPZ_PLATFORM_MACOS) ? "zlib.bundle" : "zlib.so")
-                << "is present and reachable by Ruby's loadpath.";
+  int state;
+  rb_eval_string_protect("require('zlib') if !Kernel.const_defined?(:Zlib)", &state);
+  if (state) {
+    Debug() << "Could not load Zlib. If this is important, make sure Ruby was built with static extensions, or that"
+            << ((MKXPZ_PLATFORM == MKXPZ_PLATFORM_MACOS) ? "zlib.bundle" : "zlib.so")
+            << "is present and reachable by Ruby's loadpath.";
+
+    // 获取异常详细信息
+#if RAPI_FULL > 187
+    VALUE exc = rb_errinfo();
+#else
+    VALUE exc = ruby_errinfo;
+#endif
+
+    if (!NIL_P(exc)) {
+      VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
+      VALUE bt = rb_funcall2(exc, rb_intern("backtrace"), 0, NULL);
+      VALUE excClass = rb_class_path(rb_obj_class(exc));
+
+      Debug() << "错误类型: " << StringValueCStr(excClass);
+      Debug() << "错误信息: " << StringValueCStr(msg);
+
+      // 打印回溯信息
+      if (!NIL_P(bt) && RB_TYPE_P(bt, RUBY_T_ARRAY) && RARRAY_LEN(bt) > 0) {
+        Debug() << "回溯信息:";
+        for (long i = 0; i < RARRAY_LEN(bt) && i < 5; ++i) {
+          VALUE line = rb_ary_entry(bt, i);
+          Debug() << "  " << StringValueCStr(line);
+        }
+      }
     }
+
+    // 清除异常，避免影响后续代码
+#if RAPI_FULL > 187
+    rb_set_errinfo(Qnil);
+#else
+    ruby_errinfo = Qnil;
+#endif
+  }
 
     // Set $stdout and its ilk accordingly on Windows
     // I regret teaching you that word
@@ -839,22 +1055,8 @@ RB_METHOD(mkxpGetAllJSONSettings) {
     return json2rb(shState->config().raw);
 }
 
-#include "json.hpp"
-#include "MtoolProc.h"
-
-MtoolProc *mtoolProc = nullptr;
-
 
 static VALUE rgssMainCb(VALUE block) {
-
-    if (mtoolProc == nullptr) {
-        mtoolProc = new MtoolProc();
-        rb_eval_string("$isMRI = true");
-        rb_eval_string("$isMRIAndroid = true");
-    }
-    if(mtoolProc != nullptr) {
-        mtoolProc->onEventLoop();
-    }
     rb_funcall2(block, rb_intern("call"), 0, 0);
     return Qnil;
 }
@@ -913,9 +1115,13 @@ static void runCustomScript(const std::string &filename) {
         showMsg(std::string("Unable to open '") + filename + "'");
         return;
     }
-
+    int state;
     evalString(newStringUTF8(scriptData.c_str(), scriptData.size()),
-               newStringUTF8(filename.c_str(), filename.size()), NULL);
+               newStringUTF8(filename.c_str(), filename.size()), &state);
+    if(state){
+        showMsg(std::string("Error executing '") + filename + "'");
+        return;
+    }
 }
 
 RB_METHOD_GUARD(mriRgssMain){
@@ -1013,7 +1219,7 @@ bool evalScript(VALUE string, const char *filename) {
 
 
 #define SCRIPT_SECTION_FMT (rgssVer >= 3 ? "{%04ld}" : "Section%03ld")
-
+#include <MtoolProc.h>
 static void runRMXPScripts(BacktraceData &btData) {
     const Config &conf = shState->rtData().config;
     const std::string &scriptPack = conf.game.scripts;
@@ -1023,17 +1229,22 @@ static void runRMXPScripts(BacktraceData &btData) {
         return;
     }
 
-    if (!shState->fileSystem().exists(scriptPack.c_str())) {
+    if (!shState->fileSystem().exists(shState->fileSystem().desensitize(scriptPack.c_str()))) {
         showMsg("Unable to load scripts from '" + scriptPack + "'");
         return;
     }
+
+#ifdef __ANDROID__
+    // 通知加载状态：开始加载脚本文件
+    MtoolProc::notifyLoadingStatus(2);
+#endif
 
     VALUE scriptArray;
 
     /* We checked if Scripts.rxdata exists, but something might
      * still go wrong */
     try {
-        scriptArray = kernelLoadDataInt(scriptPack.c_str(), false, false);
+        scriptArray = kernelLoadDataInt(shState->fileSystem().desensitize(scriptPack.c_str()), false, false);
     } catch (const Exception &e) {
         showMsg(std::string("Failed to read script data: ") + e.msg);
         return;
@@ -1050,6 +1261,11 @@ static void runRMXPScripts(BacktraceData &btData) {
 
     std::string decodeBuffer;
     decodeBuffer.resize(0x1000);
+
+#ifdef __ANDROID__
+    // 通知加载状态：开始解压脚本数据
+    MtoolProc::notifyLoadingStatus(3);
+#endif
 
     for (long i = 0; i < scriptCount; ++i) {
         VALUE script = rb_ary_entry(scriptArray, i);
@@ -1095,6 +1311,11 @@ static void runRMXPScripts(BacktraceData &btData) {
         rb_ary_store(script, 3, rb_utf8_str_new_cstr(decodeBuffer.c_str()));
     }
 
+#ifdef __ANDROID__
+    // 通知加载状态：开始执行预加载脚本
+    MtoolProc::notifyLoadingStatus(4);
+#endif
+
     /* Execute preloaded scripts */
     for (std::vector<std::string>::const_iterator i = conf.preloadScripts.begin();
          i != conf.preloadScripts.end(); ++i) {
@@ -1102,11 +1323,18 @@ static void runRMXPScripts(BacktraceData &btData) {
             break;
         runCustomScript(*i);
     }
-
-    VALUE exc = rb_gv_get("$!");
+#if RAPI_FULL <= 187
+    VALUE exc = ruby_errinfo;
+#else
+    VALUE exc = rb_errinfo();
+#endif
     if (exc != Qnil)
         return;
 
+#ifdef __ANDROID__
+    // 通知加载状态：正在执行脚本
+    MtoolProc::notifyLoadingStatus(5);
+#endif
     while (true) {
         for (long i = 0; i < scriptCount; ++i) {
             if (shState->rtData().rqTerm)
@@ -1156,19 +1384,23 @@ static void runRMXPScripts(BacktraceData &btData) {
              */
 
             int state;
-
             evalString(string, fname, &state);
             if (state)
                 break;
         }
 
-        VALUE exc = rb_gv_get("$!");
+      #if RAPI_FULL <= 187
+        VALUE exc = ruby_errinfo;
+      #else
+        VALUE exc = rb_errinfo();
+      #endif
         if (rb_obj_class(exc) != getRbData()->exc[Reset])
             break;
 
         if (processReset(false))
             break;
     }
+
 }
 
 static void showExc(VALUE exc, const BacktraceData &btData) {
@@ -1310,6 +1542,12 @@ static void mriBindingExecute() {
 #else
     ruby_init();
     rb_eval_string("$KCODE='U'");
+#if RAPI_FULL > 190
+    VALUE utf8 = rb_enc_from_encoding(rb_utf8_encoding());
+    rb_enc_set_default_external(utf8);
+    rb_enc_set_default_internal(utf8);
+#endif
+
 #ifdef __WIN32__
     if (!conf.winConsole) {
         VALUE iostr = rb_str_new2("NUL");
@@ -1320,7 +1558,11 @@ static void mriBindingExecute() {
 #endif
 #endif
 
+#if RAPI_FULL > 187
     VALUE rbArgv = rb_get_argv();
+#else
+    VALUE rbArgv = rb_gv_get("$*");
+#endif
     for (const auto &str: conf.launchArgs)
         rb_ary_push(rbArgv, rb_utf8_str_new_cstr(str.c_str()));
 
@@ -1347,7 +1589,13 @@ static void mriBindingExecute() {
     }
 #ifndef WORKDIR_CURRENT
     else {
-        rb_ary_push(lpaths, rb_utf8_str_new_cstr(mkxp_fs::getCurrentDirectory().c_str()));
+        std::string cwd = mkxp_fs::getCurrentDirectory();
+#if RAPI_FULL > 187
+        rb_ary_push(lpaths, rb_enc_str_new(cwd.c_str(), cwd.size(), rb_filesystem_encoding()));
+#else
+        rb_ary_push(lpaths, rb_str_new(cwd.c_str(), cwd.size()));
+#endif
+        //rb_ary_push(lpaths, rb_utf8_str_new_cstr(mkxp_fs::getCurrentDirectory().c_str()));
     }
 #endif
 
@@ -1366,7 +1614,7 @@ static void mriBindingExecute() {
 #if RAPI_FULL > 187
     VALUE exc = rb_errinfo();
 #else
-    VALUE exc = rb_gv_get("$!");
+    VALUE exc = ruby_errinfo;
 #endif
     if (!NIL_P(exc) && !rb_obj_is_kind_of(exc, rb_eSystemExit))
         showExc(exc, btData);
@@ -1379,3 +1627,4 @@ static void mriBindingExecute() {
 static void mriBindingTerminate() { throw Exception(Exception::SystemExit, " "); }
 
 static void mriBindingReset() { throw Exception(Exception::Reset, " "); }
+

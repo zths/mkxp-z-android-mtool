@@ -4,7 +4,7 @@
 #include <thread>
 #include <queue>
 #include <condition_variable>
-//#include "jni.h"
+
 #include <android/log.h>
 
 #ifdef _WIN32
@@ -114,19 +114,17 @@ public:
             m_connecting = false;
             return false;
         }
+        m_shouldRun = true;
 
-        // 读取服务器响应
-        char responseBuffer[1024] = {0};
-        int bytesRead = recv(m_socket, responseBuffer, sizeof(responseBuffer) - 1, 0);
-        if (bytesRead <= 0) {
+        // 读取服务器响应（只读取"okmtool"这几个字节）
+        char responseBuffer[8] = {0};  // 只需要足够存放"okmtool"的缓冲区
+        if (!ReadExact(responseBuffer, 7)) {
             ReportError("读取升级响应失败");
             CLOSE_SOCKET(m_socket);
             m_socket = SOCKET_INVALID;
             m_connecting = false;
             return false;
         }
-
-        responseBuffer[bytesRead] = 0;
         std::string response(responseBuffer);
 
         // 检查响应是否包含 "okmtool"
@@ -139,7 +137,6 @@ public:
         }
 
         m_connected = true;
-        m_shouldRun = true;
 
         // 启动接收线程
         m_receiveThread = std::thread(&MToolClientImpl::ReceiveThread, this);
@@ -234,7 +231,7 @@ public:
 private:
     bool SendData(const void* data, size_t size, uint32_t type) {
         if (!m_connected || m_socket == SOCKET_INVALID) {
-            ReportError("客户端未连接");
+            //ReportError("客户端未连接");
             return false;
         }
 
@@ -319,7 +316,7 @@ private:
             if (result <= 0) {
                 if (result == 0) {
                     // 连接已关闭
-                    ReportError("连接已关闭");
+                    //ReportError("连接已关闭");
                 }
                 else {
                     // 错误
@@ -605,14 +602,14 @@ void MToolClient::InitJNI(JNIEnv* env) {
     // 缓存Java类和方法ID
     jclass localClass = env->FindClass("com/example/mtool/MToolClient");
     g_javaClientClass = (jclass)env->NewGlobalRef(localClass);
-    
+
     g_onMessageMethod = env->GetMethodID(g_javaClientClass, "onMessage", "(Ljava/lang/String;)V");
     g_onBinaryMessageMethod = env->GetMethodID(g_javaClientClass, "onBinaryMessage", "([B)V");
     g_onErrorMethod = env->GetMethodID(g_javaClientClass, "onError", "(Ljava/lang/String;)V");
     g_onClosedMethod = env->GetMethodID(g_javaClientClass, "onClosed", "()V");
     g_onConnectedMethod = env->GetMethodID(g_javaClientClass, "onConnected", "()V");
-    
+
     env->DeleteLocalRef(localClass);
 }
 
-#endif // __ANDROID__ 
+#endif // __ANDROID__

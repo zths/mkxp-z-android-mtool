@@ -25,7 +25,7 @@
 #include "scene.h"
 #include "flashable.h"
 #include "disposable.h"
-#include "util.h"
+#include "src/util/util.h"
 
 struct ViewportPrivate;
 

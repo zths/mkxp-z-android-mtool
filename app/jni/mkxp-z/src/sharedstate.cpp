@@ -21,7 +21,8 @@
 
 #include "sharedstate.h"
 
-#include "util.h"
+#include "src/util/util.h"
+
 #include "filesystem.h"
 #include "graphics.h"
 #include "input.h"
@@ -37,6 +38,7 @@
 #include "binding.h"
 #include "exception.h"
 #include "sharedmidistate.h"
+#include "MtoolProc.h"
 
 #include <unistd.h>
 #include <stdio.h>
@@ -148,6 +150,11 @@ struct SharedStatePrivate
 		for (size_t i = 0; i < config.rtps.size(); ++i)
 			fileSystem.addPath(config.rtps[i].c_str());
 
+#ifdef __ANDROID__
+        // 通知加载状态：初始化共享状态
+        MtoolProc::notifyLoadingStatus(6);
+#endif
+
 		if (config.pathCache)
 			fileSystem.createPathCache();
 
@@ -189,7 +196,8 @@ void SharedState::initInstance(RGSSThreadData *threadData)
 	 * Font depends on SharedState existing */
 
 	rgssVersion = threadData->config.rgssVersion;
-    
+
+
 	_globalIBO = new GlobalIBO();
 	_globalIBO->ensureSize(1);
 

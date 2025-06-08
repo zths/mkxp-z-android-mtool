@@ -27,7 +27,7 @@
 #include "config.h"
 #include "etc.h"
 #include "etc-internal.h"
-#include "util.h"
+#include "src/util/util.h"
 
 #include "gl-util.h"
 #include "quad.h"
@@ -809,7 +809,7 @@ void Sprite::onGeometryChange(const Scene::Geometry &geo)
     /* Offset at which the sprite will be drawn
      * relative to screen origin */
     p->trans.setGlobalOffset(geo.offset());
-    
+
     p->sceneRect.setSize(geo.rect.size());
     p->sceneOrig = geo.orig;
 }
@@ -817,6 +817,7 @@ void Sprite::onGeometryChange(const Scene::Geometry &geo)
 void Sprite::releaseResources()
 {
     unlink();
-    
+
     delete p;
 }
+

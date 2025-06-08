@@ -24,7 +24,7 @@
 #include "sharedstate.h"
 #include "bitmap.h"
 #include "etc.h"
-#include "util.h"
+#include "src/util/util.h"
 
 #include "gl-util.h"
 #include "quad.h"
