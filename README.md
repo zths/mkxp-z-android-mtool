@@ -1,30 +1,16 @@
-# mkxp-z for Android
+# mkxp-z for Android with mtool
 
 Fork of: [mkxp-z-android](https://github.com/thehatkid/mkxp-z-android), using in mtool.
 
-This is port of [mkxp-z](https://github.com/mkxp-z/mkxp-z) to Android.
+Port of [mkxp-z](https://github.com/mkxp-z/mkxp-z) to Android.
 
-Currently, it's *almost* works properly (likely, *experemental*),
-but enough to have running RPG Maker XP, VX and VX Ace games.
+Compatibility Ruby monkey patch scripts used: [mkxp-z-compatibility-scripts](https://github.com/zths/mkxp-z-compatibility-scripts)
 
-## Running mkxp-z on Android
 
-0. ~~Build mkxp-z application~~ (TODO: make tutorial or public release)
-1. Install APK on your Android device
-2. Create `mkxp-z` folder on internal storage (e.g. `/storage/emulated/0/mkxp-z`)
-3. You can put custom mkxp-z config ([mkxp.json](app/jni/mkxp-z/mkxp.json)) in `mkxp-z` folder
-   (e.g. preload scripts or change game directory to load game from external storage)
-4. Copy game files into folder `mkxp-z`
-   (or to other game folder that defined in your `mkxp.json`)
-5. Run mkxp-z, grant access to storage, and have fun, I think?
+# 用于 Android 的 mkxp-z + mtool
 
-## Known issues
+此项目是 [mkxp-z-android](https://github.com/thehatkid/mkxp-z-android) 的一个分支版本，用于 MTool 中。
 
-- You can't write saves/files in external storage (such as SD Card) on lower than Android 10
-  (On Android 11+ granting All Files Access means You can write on external storages)
+[mkxp-z](https://github.com/mkxp-z/mkxp-z) 的 Android 移植版本。
 
-## To Do...
-
-- mkxp-z Android compilation tutorial on GitHub Wiki page
-- Fix compile Ruby extensions in Windows MSYS2 environment
-- *...and much more, I think?*
+所使用的 Ruby 兼容性猴子补丁脚本：[mkxp-z-compatibility-scripts](https://github.com/zths/mkxp-z-compatibility-scripts)
