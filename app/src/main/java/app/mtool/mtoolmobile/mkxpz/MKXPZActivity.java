@@ -43,9 +43,7 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Dictionary;
 import java.util.HashMap;
 
 public class MKXPZActivity extends SDLActivity {
@@ -896,7 +894,7 @@ public class MKXPZActivity extends SDLActivity {
         }
 
         // 通过通用布局文件加载覆盖层
-        loadingOverlay = getLayoutInflater().inflate(R.layout.general_overlay, null);
+        loadingOverlay = getLayoutInflater().inflate(R.layout.loading_overlay, null);
 
         // 获取UI组件引用
         tvOverlayTitle = loadingOverlay.findViewById(R.id.tv_overlay_title);

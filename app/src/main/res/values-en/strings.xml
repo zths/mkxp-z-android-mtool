@@ -18,4 +18,8 @@
     <string name="loading_failed">Loading Failed</string>
     <string name="loading_generic">Loading...</string>
     <string name="loading_init_game">Initializing game environment...</string>
+
+    <!-- Project attribution for GPL v2 compliance -->
+    <string name="project_attribution">Based on GPL v2 licensed project: https://github.com/zths/mkxp-z-android-mtool</string>
 </resources>
+
