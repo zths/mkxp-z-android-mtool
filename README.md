@@ -2,6 +2,15 @@
 
 Fork of: [mkxp-z-android](https://github.com/thehatkid/mkxp-z-android), using in mtool.
 
-This is port of [mkxp-z](https://github.com/mkxp-z/mkxp-z) to Android.
+Port of [mkxp-z](https://github.com/mkxp-z/mkxp-z) to Android.
 
 Compatibility Ruby monkey patch scripts used: [mkxp-z-compatibility-scripts](https://github.com/zths/mkxp-z-compatibility-scripts)
+
+
+# 用于 Android 的 mkxp-z + mtool
+
+此项目是 [mkxp-z-android](https://github.com/thehatkid/mkxp-z-android) 的一个分支版本，用于 MTool 中。
+
+[mkxp-z](https://github.com/mkxp-z/mkxp-z) 的 Android 移植版本。
+
+所使用的 Ruby 兼容性猴子补丁脚本：[mkxp-z-compatibility-scripts](https://github.com/zths/mkxp-z-compatibility-scripts)
