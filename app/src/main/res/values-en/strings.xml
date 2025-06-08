@@ -20,6 +20,6 @@
     <string name="loading_init_game">Initializing game environment...</string>
 
     <!-- Project attribution for GPL v2 compliance -->
-    <string name="project_attribution">Based on GPL v2 licensed project: https://github.com/zths/mkxp-z-android-mtool</string>
+    <string name="project_attribution">Based on GPL v2 licensed project mkxp > mkxp-z > mkxp-z-android\nhttps://github.com/zths/mkxp-z-android-mtool</string>
 </resources>
 

@@ -23,7 +23,7 @@
     <string name="loading_init_game">初始化游戏环境...</string>
 
     <!-- Project attribution for GPL v2 compliance -->
-    <string name="project_attribution">基于 GPL v2 许可的开源项目: https://github.com/zths/mkxp-z-android-mtool</string>
+    <string name="project_attribution">基于 GPL v2 许可的开源项目 mkxp > mkxp-z > mkxp-z-android\nhttps://github.com/zths/mkxp-z-android-mtool</string>
 </resources>
 
 
