@@ -1051,4 +1051,8 @@ public class MKXPZActivity extends SDLActivity {
         // 添加到根视图
         rootView.post(() -> rootView.addView(fpsTextView, params));
     }
+    @Override
+    public void setOrientationBis(int w, int h, boolean resizable, String hint){
+        //锁定布局
+    }
 }
