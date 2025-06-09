@@ -55,7 +55,6 @@
         <!-- Main activity -->
         <activity
             android:name="app.mtool.mtoolmobile.mkxpz.MKXPZActivity"
-            android:label="mkxp-z"
             android:launchMode="singleTop"
             android:alwaysRetainTaskState="true"
             android:screenOrientation="landscape"
