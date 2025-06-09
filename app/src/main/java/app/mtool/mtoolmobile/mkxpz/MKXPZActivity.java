@@ -43,6 +43,7 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 
@@ -415,17 +416,33 @@ public class MKXPZActivity extends SDLActivity {
         try {
             // 加载MToolViewManager类
             mtoolViewManagerClass = getRemoteClassLoader().loadClass("app.mtool.mtoolmobile.mtool.managers.MToolViewManager");
-            justKillMeAndBringUpMTOOL = mtoolViewManagerClass.getMethod("justKillMeAndBringUpMTOOL", Activity.class);
+            // 获取构造函数
+            java.lang.reflect.Constructor<?> constructor = mtoolViewManagerClass.getConstructor(
+                    Activity.class);
+            // 创建实例
+            mtoolViewManager = constructor.newInstance(this);
+            justKillMeAndBringUpMTOOL = mtoolViewManagerClass.getMethod("justKillMeAndBringUpMTOOL");
             sendKeyEventToSender = mtoolViewManagerClass.getMethod("sendKeyEventToSender", KeyEvent.class);
             try {
                 GAME_PATH = PackageContextHelper.readFileFromOtherApp(this, "node/mtoolWebRoot/mkxpz_game_path");
+                if (GAME_PATH == null) {
+                    throw new Exception("读取游戏路径或端口失败");
+                }
                 SERVER_PORT = Integer.parseInt(PackageContextHelper.readFileFromOtherApp(this, "node/serverURI").split(":")[1]);
                 usingRubyVersion = Integer.parseInt(PackageContextHelper.readFileFromOtherApp(this, "node/mtoolWebRoot/mkxpz_rubyVersion"));
                 Log.v(TAG, "游戏路径: " + GAME_PATH);
                 Log.v(TAG, "Ruby Version: " + usingRubyVersion);
             } catch (Exception e) {
                 Log.e(TAG, "读取游戏路径或端口失败，可能是 MTool 服务未在运行", e);
-                justKillMeAndBringUpMTOOL.invoke(null, this);
+                makeAlert((dialog, which) -> {
+                    try {
+                        justKillMeAndBringUpMTOOL.invoke(mtoolViewManager);
+                    } catch (IllegalAccessException ex) {
+                        throw new RuntimeException(ex);
+                    } catch (InvocationTargetException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }, getString(R.string.loading_failed), "读取游戏路径或端口失败，可能是 MTool 服务未在运行");
                 //throw new RuntimeException(e);
                 return;
             }
@@ -515,12 +532,6 @@ public class MKXPZActivity extends SDLActivity {
             // Set up the surface
             mSurface = createSDLSurface(getApplication());
 
-            // 获取构造函数
-            java.lang.reflect.Constructor<?> constructor = mtoolViewManagerClass.getConstructor(
-                    Activity.class);
-
-            // 创建实例
-            mtoolViewManager = constructor.newInstance(this);
 
             // 调用init方法
             Method initMethod = mtoolViewManagerClass.getMethod("init");
@@ -583,7 +594,16 @@ public class MKXPZActivity extends SDLActivity {
             Log.e(TAG, "OnCreate Done");
         } catch (Exception e) {
             Log.e(TAG, "OnCreate Error: " + e, e);
-            throw new RuntimeException(e);
+            makeAlert((dialog, which) -> {
+                if (justKillMeAndBringUpMTOOL != null) {
+                    try {
+                        justKillMeAndBringUpMTOOL.invoke(mtoolViewManager);
+                        System.exit(0);
+                    } catch (Exception ex) {
+                        Log.e("MTool", "调用 justKillMeAndBringUpMTOOL 失败", ex);
+                    }
+                }
+            }, getString(R.string.loading_failed), e);
         }
     }
 
@@ -593,7 +613,7 @@ public class MKXPZActivity extends SDLActivity {
      */
     public void releaseGameView() {// 反射调用
         try {
-            justKillMeAndBringUpMTOOL.invoke(null, this);
+            justKillMeAndBringUpMTOOL.invoke(mtoolViewManager);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -1051,8 +1071,43 @@ public class MKXPZActivity extends SDLActivity {
         // 添加到根视图
         rootView.post(() -> rootView.addView(fpsTextView, params));
     }
+
     @Override
-    public void setOrientationBis(int w, int h, boolean resizable, String hint){
+    public void setOrientationBis(int w, int h, boolean resizable, String hint) {
         //锁定布局
+    }
+
+    private void makeAlert(DialogInterface.OnClickListener callback, String title, String message) {
+        runOnUiThread(() -> {
+            final AlertDialog.Builder builder =
+                    new AlertDialog.Builder(this)
+                            .setTitle(title)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, callback);
+            builder.create().show();
+        });
+    }
+
+    private void makeAlert(DialogInterface.OnClickListener callback, String title, Exception e) {
+        // 构建包含异常详细信息和完整堆栈的消息
+        StringBuilder messageBuilder = new StringBuilder();
+        messageBuilder.append(e.toString()).append("\n\n");
+        messageBuilder.append("堆栈跟踪:\n");
+
+        // 获取完整堆栈
+        for (StackTraceElement element : e.getStackTrace()) {
+            messageBuilder.append("    ").append(element.toString()).append("\n");
+        }
+
+        // 添加任何内部异常的堆栈
+        Throwable cause = e.getCause();
+        if (cause != null) {
+            messageBuilder.append("\n原因: ").append(cause.toString()).append("\n");
+            for (StackTraceElement element : cause.getStackTrace()) {
+                messageBuilder.append("    ").append(element.toString()).append("\n");
+            }
+        }
+
+        makeAlert(callback, title, messageBuilder.toString());
     }
 }

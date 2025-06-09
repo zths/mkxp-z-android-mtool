@@ -37,7 +37,7 @@ public class PackageContextHelper {
             }
             return content.toString();
         } catch (Exception e) {
-            Log.e("ContentProviderAccess", "读取文件失败", e);
+            Log.i("ContentProviderAccess", "读取文件失败", e);
             return null;
         }
     }
@@ -51,7 +51,7 @@ public class PackageContextHelper {
             fos.flush();
             return true;
         } catch (Exception e) {
-            Log.e("ContentProviderAccess", "写入文件失败: " + fileName, e);
+            Log.i("ContentProviderAccess", "写入文件失败: " + fileName, e);
             return false;
         }
     }
@@ -69,7 +69,7 @@ public class PackageContextHelper {
             // 文件不存在
             return false;
         } catch (IOException e) {
-            Log.e("FileCheck", "检查文件存在时关闭描述符出错", e);
+            Log.i("FileCheck", "检查文件存在时关闭描述符出错", e);
             return false;
         }
     }
@@ -90,7 +90,7 @@ public class PackageContextHelper {
             }
             return false;
         } catch (Exception e) {
-            Log.e("FileCheck", "检查文件存在时出错", e);
+            Log.i("FileCheck", "检查文件存在时出错", e);
             return false;
         }
     }
@@ -108,7 +108,7 @@ public class PackageContextHelper {
             int deletedRows = context.getContentResolver().delete(fileUri, null, null);
             return deletedRows > 0;
         } catch (Exception e) {
-            Log.e("ContentProviderAccess", "删除文件失败", e);
+            Log.i("ContentProviderAccess", "删除文件失败", e);
             return false;
         }
     }
