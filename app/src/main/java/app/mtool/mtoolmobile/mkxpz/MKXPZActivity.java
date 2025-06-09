@@ -119,6 +119,26 @@ public class MKXPZActivity extends SDLActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // 1. 只关心 BACK
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {     // 常量值为 4
+            // 2. 只在按键“抬起”时处理，保持与系统行为一致
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                // 3. 你的返回逻辑（finish／弹对话框／NavController.popBackStack() 等）
+                try {
+                    // 让MToolViewManager处理返回键事件
+                    Class<?> mtoolViewManagerClass = getRemoteClassLoader().loadClass(
+                            "app.mtool.mtoolmobile.mtool.managers.MToolViewManager");
+                    Method onBackPressedMethod = mtoolViewManagerClass.getMethod("onBackPressed");
+                    onBackPressedMethod.invoke(mtoolViewManager);
+                } catch (Exception e) {
+                    Log.e(TAG, "处理返回键事件失败", e);
+                }
+                return true;  // 表示事件已消费
+            }
+            // 如果想拦截长按，可用 event.isLongPress() 或 repeatCount>0 做区分
+            return true;      // DOWN 也提前消费，防止继续冒泡
+        }
+
         if (sendKeyEventToSender != null) {
             try {
                 sendKeyEventToSender.invoke(null, event);
@@ -654,19 +674,6 @@ public class MKXPZActivity extends SDLActivity {
         }
     }
 
-    @Override
-    public void onBackPressed() {
-        try {
-            // 让MToolViewManager处理返回键事件
-            Class<?> mtoolViewManagerClass = getRemoteClassLoader().loadClass(
-                    "app.mtool.mtoolmobile.mtool.managers.MToolViewManager");
-            Method onBackPressedMethod = mtoolViewManagerClass.getMethod("onBackPressed");
-            onBackPressedMethod.invoke(mtoolViewManager);
-        } catch (Exception e) {
-            Log.e(TAG, "处理返回键事件失败", e);
-            super.onBackPressed();
-        }
-    }
 
     @Override
     protected void onPause() {
