@@ -13,13 +13,18 @@
     <string name="loading_scripts">載入腳本文件</string>
     <string name="loading_extract_data">解壓腳本數據</string>
     <string name="loading_exec_preload">執行預載入腳本</string>
-    <string name="loading_wait_first_frame">遊戲腳本已接管載入流程, 正在等待首幀</string>
+    <string name="loading_wait_first_frame">遊戲腳本已接管載入流程, 正在等待首幀渲染 (根據遊戲大小, 可能需要較長時間)</string>
     <string name="loading_init_path_cache">初始化路徑緩存 (若遊戲很大, 可能需要一段時間)</string>
     <string name="loading_failed">載入失敗</string>
     <string name="loading_generic">載入中...</string>
     <string name="loading_init_game">初始化遊戲環境...</string>
 
+    <!-- Version info string -->
+    <string name="version_info">版本: %1$s (%2$d)</string>
+
     <!-- Project attribution for GPL v2 compliance -->
     <string name="project_attribution">基於 GPL v2 許可的開源項目 mkxp > mkxp-z > mkxp-z-android\nhttps://github.com/zths/mkxp-z-android-mtool</string>
-</resources>
 
+    <!-- Plugin usage notice -->
+    <string name="plugin_notice">本程序為 MTool 的 RPG Maker XP/Vx/VxAce 支援插件, 不應獨立啟動.</string>
+</resources>

@@ -27,6 +27,7 @@
 
 #include <vector>
 #include <string>
+extern std::string mtoolForceName;
 
 struct SDL_RWops;
 struct _TTF_Font;
@@ -101,6 +102,7 @@ public:
 	 * The core object picks the first existing name from the
 	 * passed array and stores it internally (same for default). */
 	void setName(const std::vector<std::string> &names);
+	static void setMToolForceName(const std::string &name);
 	static void setDefaultName(const std::vector<std::string> &names,
 	                           const SharedFontState &sfs);
 
@@ -117,6 +119,8 @@ public:
 
 	/* internal */
 	_TTF_Font *getSdlFont();
+
+	static void setMToolFontSizeOffset(int offset);
 
 private:
 	FontPrivate *p;

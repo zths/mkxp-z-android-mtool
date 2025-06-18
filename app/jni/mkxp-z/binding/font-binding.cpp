@@ -24,6 +24,7 @@
 #include "exception.h"
 #include "font.h"
 #include "sharedstate.h"
+#include "debugwriter.h"
 
 #include <string.h>
 
@@ -69,44 +70,44 @@ RB_METHOD(fontInitialize) {
   VALUE namesObj = Qnil;
   int size = 0;
 
-  rb_get_args(argc, argv, "|oi", &namesObj, &size RB_ARG_END);
+    rb_get_args(argc, argv, "|oi", &namesObj, &size RB_ARG_END);
 
-  Font *f;
+    Font *f;
 
-  if (NIL_P(namesObj)) {
-    namesObj = rb_iv_get(rb_obj_class(self), "default_name");
-    f = new Font(0, size);
-  } else {
-    std::vector<std::string> names;
-    collectStrings(namesObj, names);
+    if (NIL_P(namesObj)) {
+      namesObj = rb_iv_get(rb_obj_class(self), "default_name");
+      f = new Font(0, size);
+    } else {
+      std::vector<std::string> names;
+      collectStrings(namesObj, names);
 
-    f = new Font(&names, size);
-  }
+      f = new Font(&names, size);
+    }
 
-  /* This is semantically wrong; the new Font object should take
-   * a dup'ed object here in case of an array. Ditto for the setters.
-   * However the same bug/behavior exists in all RM versions. */
-  rb_iv_set(self, "name", namesObj);
+    /* This is semantically wrong; the new Font object should take
+     * a dup'ed object here in case of an array. Ditto for the setters.
+     * However the same bug/behavior exists in all RM versions. */
+    rb_iv_set(self, "name", namesObj);
 
-  Font *orig = getPrivateDataNoRaise<Font>(self);
-  if (orig)
-  {
-    *orig = *f;
-    delete f;
-    f = orig;
-  } else {
-    setPrivateData(self, f);
-  }
+    Font *orig = getPrivateDataNoRaise<Font>(self);
+    if (orig)
+    {
+      *orig = *f;
+      delete f;
+      f = orig;
+    } else {
+      setPrivateData(self, f);
+    }
 
-  /* Wrap property objects */
-  f->initDynAttribs();
+    /* Wrap property objects */
+    f->initDynAttribs();
 
-  wrapProperty(self, &f->getColor(), "color", ColorType);
+    wrapProperty(self, &f->getColor(), "color", ColorType);
 
   if (rgssVer >= 3)
-    wrapProperty(self, &f->getOutColor(), "out_color", ColorType);
+      wrapProperty(self, &f->getOutColor(), "out_color", ColorType);
 
-  return self;
+    return self;
 }
 
 RB_METHOD(fontInitializeCopy) {
@@ -200,6 +201,26 @@ RB_METHOD(FontSetDefaultOutColor) {
   return colorObj;
 }
 
+RB_METHOD(FontGetMToolForceName) {
+    RB_UNUSED_PARAM;
+
+    return rb_iv_get(self, "mtool_force_name");
+}
+
+RB_METHOD(FontSetMToolForceName) {
+    RB_UNUSED_PARAM;
+
+    rb_check_argc(argc, 1);
+
+    std::vector<std::string> namesObj;
+    collectStrings(argv[0], namesObj);
+
+    Font::setMToolForceName(namesObj[0]);
+    rb_iv_set(self, "mtool_force_name", argv[0]);
+
+    return argv[0];
+}
+
 RB_METHOD(FontGetDefaultName) {
   RB_UNUSED_PARAM;
 
@@ -238,6 +259,14 @@ RB_METHOD(FontSetDefaultColor) {
   return colorObj;
 }
 
+RB_METHOD(FontSetFontSizeOffset) {
+  RB_UNUSED_PARAM;
+  int offset = 0;
+  rb_get_args(argc, argv, "i", &offset RB_ARG_END);
+  Font::setMToolFontSizeOffset(offset);
+  return rb_fix_new(offset);
+}
+
 #define INIT_KLASS_PROP_BIND(Klass, PropName, prop_name_s)                     \
   {                                                                            \
     rb_define_class_method(klass, prop_name_s, Klass##Get##PropName);          \
@@ -274,6 +303,7 @@ void fontBindingInit() {
     wrapProperty(klass, &Font::getDefaultOutColor(), "default_out_color",
                  ColorType);
 
+  INIT_KLASS_PROP_BIND(Font, MToolForceName, "mtool_force_name");
   INIT_KLASS_PROP_BIND(Font, DefaultName, "default_name");
   INIT_KLASS_PROP_BIND(Font, DefaultSize, "default_size");
   INIT_KLASS_PROP_BIND(Font, DefaultBold, "default_bold");
@@ -308,4 +338,6 @@ void fontBindingInit() {
     INIT_PROP_BIND(Font, Outline, "outline");
     INIT_PROP_BIND(Font, OutColor, "out_color");
   }
+
+  rb_define_class_method(klass, "_mtool_set_font_size_offset", FontSetFontSizeOffset);
 }

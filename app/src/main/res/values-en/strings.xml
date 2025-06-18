@@ -13,13 +13,18 @@
     <string name="loading_scripts">Loading Script Files</string>
     <string name="loading_extract_data">Extracting Script Data</string>
     <string name="loading_exec_preload">Executing Preload Scripts</string>
-    <string name="loading_wait_first_frame">Game script has taken over loading process, waiting for first frame</string>
+    <string name="loading_wait_first_frame">Game script has taken over the loading process, waiting for first frame render (may take longer depending on game size)</string>
     <string name="loading_init_path_cache">Initializing path cache (may take a while if the game is large)</string>
     <string name="loading_failed">Loading Failed</string>
     <string name="loading_generic">Loading...</string>
     <string name="loading_init_game">Initializing game environment...</string>
 
+    <!-- Version info string -->
+    <string name="version_info">Version: %1$s (%2$d)</string>
+
     <!-- Project attribution for GPL v2 compliance -->
     <string name="project_attribution">Based on GPL v2 licensed project mkxp > mkxp-z > mkxp-z-android\nhttps://github.com/zths/mkxp-z-android-mtool</string>
-</resources>
 
+    <!-- Plugin usage notice -->
+    <string name="plugin_notice">This app is a RPG Maker XP/Vx/VxAce support plugin for MTool, should not be launched independently.</string>
+</resources>

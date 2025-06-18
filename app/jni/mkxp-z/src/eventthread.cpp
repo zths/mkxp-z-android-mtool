@@ -28,6 +28,7 @@
 #include <SDL_touch.h>
 #include <SDL_rect.h>
 
+
 #include <al.h>
 #include <alc.h>
 #include <alext.h>
@@ -48,6 +49,80 @@
 #ifdef MKXPZ_BUILD_ANDROID
 #include <SDL.h>
 #include <jni.h>
+
+// 缓存JNI相关引用
+static jclass cachedJavaClass = nullptr;
+static jmethodID cachedSetFPSVisibilityMethod = nullptr;
+static jmethodID cachedUpdateFPSTextMethod = nullptr;
+
+// 初始化JNI缓存
+static bool initJNICache() {
+    if (cachedJavaClass != nullptr) {
+        return true; // 已经初始化过
+    }
+
+    JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
+    if (!env) {
+        return false;
+    }
+
+    jobject activity = (jobject)SDL_AndroidGetActivity();
+    if (!activity) {
+        return false;
+    }
+
+    jclass cls = env->GetObjectClass(activity);
+    if (!cls) {
+        env->DeleteLocalRef(activity);
+        return false;
+    }
+
+    // 创建全局引用，这样即使跨JNI调用也能保持有效
+    cachedJavaClass = (jclass)env->NewGlobalRef(cls);
+
+    // 获取方法ID
+    cachedSetFPSVisibilityMethod = env->GetStaticMethodID(cachedJavaClass, "setFPSVisibility", "(Z)V");
+    cachedUpdateFPSTextMethod = env->GetStaticMethodID(cachedJavaClass, "updateFPSText", "(I)V");
+
+    // 释放本地引用
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(activity);
+
+    return (cachedSetFPSVisibilityMethod != nullptr && cachedUpdateFPSTextMethod != nullptr);
+}
+
+// 清理JNI缓存，在程序退出时调用
+static void cleanupJNICache() {
+    JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
+    if (env && cachedJavaClass) {
+        env->DeleteGlobalRef(cachedJavaClass);
+        cachedJavaClass = nullptr;
+    }
+    cachedSetFPSVisibilityMethod = nullptr;
+    cachedUpdateFPSTextMethod = nullptr;
+}
+
+static void jniSetFPSVisibility(bool state)
+{
+    if (!initJNICache()) {
+        SDL_Log("Failed to initialize JNI cache for FPS visibility");
+        return;
+    }
+
+    JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
+    env->CallStaticVoidMethod(cachedJavaClass, cachedSetFPSVisibilityMethod, state);
+}
+
+static void jniUpdateFPSText(int num)
+{
+    if (!initJNICache()) {
+        SDL_Log("Failed to initialize JNI cache for FPS text update");
+        return;
+    }
+
+    JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
+    env->CallStaticVoidMethod(cachedJavaClass, cachedUpdateFPSTextMethod, (jint)num);
+}
 #endif
 
 #include "al-util.h"
@@ -86,38 +161,6 @@ static void initALCFunctions(ALCdevice *alcDev)
 }
 
 #define HAVE_ALC_DEVICE_PAUSE alc.DevicePause
-
-#ifdef MKXPZ_BUILD_ANDROID
-static void jniSetFPSVisibility(bool state)
-{
-	JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
-	jobject activity = (jobject)SDL_AndroidGetActivity();
-	jclass cls = env->GetObjectClass(activity);
-
-	jmethodID mID = env->GetStaticMethodID(cls, "setFPSVisibility", "(Z)V");
-	SDL_assert(mID != 0);
-
-	env->CallStaticVoidMethod(cls, mID, state);
-
-	env->DeleteLocalRef(cls);
-	env->DeleteLocalRef(activity);
-}
-
-static void jniUpdateFPSText(int num)
-{
-	JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
-	jobject activity = (jobject)SDL_AndroidGetActivity();
-	jclass cls = env->GetObjectClass(activity);
-
-	jmethodID mID = env->GetStaticMethodID(cls, "updateFPSText", "(I)V");
-	SDL_assert(mID != 0);
-
-	env->CallStaticVoidMethod(cls, mID, (jint)num);
-
-	env->DeleteLocalRef(cls);
-	env->DeleteLocalRef(activity);
-}
-#endif
 
 uint8_t EventThread::keyStates[];
 EventThread::ControllerState EventThread::controllerState;
@@ -184,7 +227,9 @@ void EventThread::cursorTimer()
     SDL_RemoveTimer(hideCursorTimerID);
     hideCursorTimerID = SDL_AddTimer(500, cursorTimerCallback, this);
 }
-
+#ifdef MKXPZ_BUILD_ANDROID
+bool firstjniSetFPSVisibility = false;
+#endif
 void EventThread::process(RGSSThreadData &rtData)
 {
 	SDL_Event event;
@@ -203,14 +248,17 @@ void EventThread::process(RGSSThreadData &rtData)
 	fullscreen = rtData.config.fullscreen;
 	int toggleFSMod = rtData.config.anyAltToggleFS ? KMOD_ALT : KMOD_LALT;
     bool displayingFPS = rtData.config.displayFPS;
-
-	if (displayingFPS || rtData.config.printFPS) {
-		fps.sendUpdates.set();
 #ifdef MKXPZ_BUILD_ANDROID
-		jniSetFPSVisibility(true);
-#endif
+	if (!firstjniSetFPSVisibility && (displayingFPS || rtData.config.printFPS)) {
+        firstjniSetFPSVisibility = true;
+        jniSetFPSVisibility(true);
+		fps.sendUpdates.set();
 	}
-
+#else
+    if (displayingFPS || rtData.config.printFPS) {
+		fps.sendUpdates.set();
+    }
+#endif
 	bool cursorInWindow = false;
 
 	// Will be updated eventually
@@ -603,9 +651,8 @@ void EventThread::process(RGSSThreadData &rtData)
 
 #ifdef MKXPZ_BUILD_ANDROID
 						jniUpdateFPSText(event.user.code);
-#endif
-
-						// Updating the window title in fullscreen mode
+#else
+                        // Updating the window title in fullscreen mode
 						// seems to cause flickering
 						if (fullscreen) {
 							strncpy(pendingTitle, buffer, sizeof(pendingTitle));
@@ -614,6 +661,9 @@ void EventThread::process(RGSSThreadData &rtData)
 						}
 
 						SDL_SetWindowTitle(win, buffer);
+#endif
+
+
 
 						break;
 
@@ -870,7 +920,17 @@ void EventThread::notifyFrame()
 	event.user.code = round(shState->graphics().averageFrameRate());
 #endif
 	event.user.type = usrIdStart + UPDATE_FPS;
-	SDL_PushEvent(&event);
+#ifndef __ANDROID__
+    SDL_PushEvent(&event);
+#else
+    // Android devices may not update the FPS display immediately
+    // if the app is in the background, so we need to force it
+    if (hideCursorTimerID) {
+        SDL_RemoveTimer(hideCursorTimerID);
+        hideCursorTimerID = 0;
+    }
+    jniUpdateFPSText(event.user.code);
+#endif
 }
 
 void EventThread::notifyGameScreenChange(const SDL_Rect &screen)
@@ -969,8 +1029,15 @@ void SyncPoint::Util::waitForUnlock()
 	SDL_LockMutex(mut);
 
 	while (locked) {
-		// FIXME: Android: On older versions/devices can cause deadlock after app going to background
-		SDL_CondWait(cond, mut);
+		// 修复：Android设备上的死锁问题 - 使用超时机制
+		int result = SDL_CondWaitTimeout(cond, mut, 100); // 100ms超时
+		if (result == SDL_MUTEX_TIMEDOUT) {
+			// 超时后检查是否应该继续等待
+			if (!locked) {
+				break; // 锁已释放，退出循环
+			}
+			// 继续等待，但避免永久死锁
+		}
 	}
 
 	SDL_UnlockMutex(mut);

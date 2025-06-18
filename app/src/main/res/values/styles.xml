@@ -11,5 +11,16 @@
         <item name="android:navigationBarColor">@android:color/black</item>
     </style>
 
+    <!-- SplashActivity专用主题，不隐藏状态栏 -->
+    <style name="SplashTheme" parent="android:Theme.Material.Light">
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:colorBackground">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
     <style name="GamepadButton" />
 </resources>

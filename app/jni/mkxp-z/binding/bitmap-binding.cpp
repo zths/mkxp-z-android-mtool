@@ -41,13 +41,13 @@ static const char *objAsStringPtr(VALUE obj) {
 
 void bitmapInitProps(Bitmap *b, VALUE self) {
     /* Wrap properties */
-    VALUE fontKlass = rb_const_get(rb_cObject, rb_intern("Font"));
+        VALUE fontKlass = rb_const_get(rb_cObject, rb_intern("Font"));
     VALUE fontObj = rb_obj_alloc(fontKlass);
-    rb_obj_call_init(fontObj, 0, 0);
-    
+            rb_obj_call_init(fontObj, 0, 0);
+            
     Font *font = getPrivateData<Font>(fontObj);
-    
-    rb_iv_set(self, "font", fontObj);
+
+        rb_iv_set(self, "font", fontObj);
 
     // Leave property as default nil if hasHires() is false.
     if (b->hasHires()) {
@@ -61,27 +61,27 @@ void bitmapInitProps(Bitmap *b, VALUE self) {
         b->getHires()->setInitFont(hiresFont);
         
     }
-    b->setInitFont(font);
+            b->setInitFont(font);
 }
 
 RB_METHOD_GUARD(bitmapInitialize) {
     Bitmap *b = 0;
-    
-    if (argc == 1) {
-        char *filename;
-        rb_get_args(argc, argv, "z", &filename RB_ARG_END);
-        
+
+        if (argc == 1) {
+            char *filename;
+            rb_get_args(argc, argv, "z", &filename RB_ARG_END);
+
         GFX_GUARD_EXC(b = new Bitmap(filename);)
-    } else {
-        int width, height;
-        rb_get_args(argc, argv, "ii", &width, &height RB_ARG_END);
-        
+        } else {
+            int width, height;
+            rb_get_args(argc, argv, "ii", &width, &height RB_ARG_END);
+
         GFX_GUARD_EXC(b = new Bitmap(width, height);)
-    }
-    
+                }
+
     setPrivateData(self, b);
     bitmapInitProps(b, self);
-    
+
     return self;
 }
 RB_METHOD_GUARD_END
@@ -799,22 +799,26 @@ RB_METHOD(bitmapGetMaxSize){
     return INT2NUM(Bitmap::maxSize());
 }
 
+
+
+
+
 RB_METHOD_GUARD(bitmapInitializeCopy) {
     rb_check_argc(argc, 1);
     VALUE origObj = argv[0];
     
     if (!OBJ_INIT_COPY(self, origObj))
-        return self;
-    
-    Bitmap *orig = getPrivateData<Bitmap>(origObj);
-    Bitmap *b = 0;
-    
-    GFX_GUARD_EXC(b = new Bitmap(*orig););
-    
-    bitmapInitProps(b, self);
-    b->setFont(orig->getFont());
-    setPrivateData(self, b);
-    
+            return self;
+
+        Bitmap *orig = getPrivateData<Bitmap>(origObj);
+        Bitmap *b = 0;
+
+        GFX_GUARD_EXC(b = new Bitmap(*orig););
+
+        bitmapInitProps(b, self);
+        b->setFont(orig->getFont());
+        setPrivateData(self, b);
+
     return self;
 }
 RB_METHOD_GUARD_END
@@ -826,7 +830,7 @@ void bitmapBindingInit() {
 #else
     rb_define_alloc_func(klass, BitmapAllocate);
 #endif
-    
+
     disposableBindingInit<Bitmap>(klass);
     
     _rb_define_method(klass, "initialize", bitmapInitialize);

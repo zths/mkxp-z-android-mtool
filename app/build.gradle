@@ -22,8 +22,8 @@ android {
         minSdk 29
         //noinspection ExpiredTargetSdkVersion
         targetSdk 29
-        versionCode 11
-        versionName "0.1.1"
+        versionCode 15
+        versionName "0.1.5"
         archivesBaseName = "mkxp-z-$versionName"
         ndk.debugSymbolLevel = 'FULL'
     }

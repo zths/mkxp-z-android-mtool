@@ -1123,7 +1123,7 @@ struct GraphicsPrivate {
         SDL_GL_MakeCurrent(threadData->window, 0);
         threadData->syncPoint.waitMainSync();
         SDL_GL_MakeCurrent(threadData->window, glCtx);
-        
+
         fpsLimiter.resetFrameAdjust();
     }
     
@@ -1643,6 +1643,9 @@ bool Graphics::getShowCursor() const {
 }
 
 void Graphics::setShowCursor(bool value) {
+#ifdef __ANDROID__
+    return;
+#endif
     p->threadData->ethread->requestShowCursor(value);
 }
 

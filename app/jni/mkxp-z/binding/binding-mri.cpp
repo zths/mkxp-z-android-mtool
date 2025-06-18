@@ -1119,7 +1119,52 @@ static void runCustomScript(const std::string &filename) {
     evalString(newStringUTF8(scriptData.c_str(), scriptData.size()),
                newStringUTF8(filename.c_str(), filename.size()), &state);
     if(state){
-        showMsg(std::string("Error executing '") + filename + "'");
+        // 获取详细的错误信息
+#if RAPI_FULL > 187
+        VALUE exc = rb_errinfo();
+#else
+        VALUE exc = ruby_errinfo;
+#endif
+        if (!NIL_P(exc)) {
+            VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
+            VALUE bt = rb_funcall2(exc, rb_intern("backtrace"), 0, NULL);
+            VALUE excClass = rb_class_path(rb_obj_class(exc));
+
+            std::string errorMsg = std::string("执行脚本 '") + filename + "' 时出错\n";
+            errorMsg += "错误类型: " + std::string(StringValueCStr(excClass)) + "\n";
+            errorMsg += "错误信息: " + std::string(StringValueCStr(msg)) + "\n";
+
+            // 添加回溯信息
+            if (!NIL_P(bt) && RB_TYPE_P(bt, RUBY_T_ARRAY) && RARRAY_LEN(bt) > 0) {
+                errorMsg += "堆栈回溯:\n";
+                long btLen = RARRAY_LEN(bt);
+                // 限制显示的行数，避免过长
+                long maxLines = std::min(btLen, 10L);
+                for (long i = 0; i < maxLines; ++i) {
+                    VALUE line = rb_ary_entry(bt, i);
+                    errorMsg += "  " + std::string(StringValueCStr(line)) + "\n";
+                }
+                if (maxLines < btLen) {
+                    errorMsg += "  ... (还有 " + std::to_string(btLen - maxLines) + " 行未显示)\n";
+                }
+            }
+
+            // 也在调试日志中输出
+            Debug() << "执行脚本 '" << filename << "' 时出错";
+            Debug() << "错误类型: " << StringValueCStr(excClass);
+            Debug() << "错误信息: " << StringValueCStr(msg);
+
+            showMsg(errorMsg);
+
+            // 清除异常状态
+#if RAPI_FULL > 187
+            rb_set_errinfo(Qnil);
+#else
+            ruby_errinfo = Qnil;
+#endif
+        } else {
+            showMsg(std::string("执行脚本 '") + filename + "' 时出错，但无法获取详细信息");
+        }
         return;
     }
 }
@@ -1406,9 +1451,27 @@ static void runRMXPScripts(BacktraceData &btData) {
 static void showExc(VALUE exc, const BacktraceData &btData) {
     VALUE bt = rb_funcall2(exc, rb_intern("backtrace"), 0, NULL);
     VALUE msg = rb_funcall2(exc, rb_intern("message"), 0, NULL);
-    VALUE bt0 = rb_ary_entry(bt, 0);
     VALUE name = rb_class_path(rb_obj_class(exc));
 
+    // 记录完整的错误信息到调试日志
+    Debug() << "Ruby 异常: " << StringValueCStr(name);
+    Debug() << "错误信息: " << StringValueCStr(msg);
+
+    // 处理空堆栈的情况
+    if (NIL_P(bt) || !RB_TYPE_P(bt, RUBY_T_ARRAY) || RARRAY_LEN(bt) == 0) {
+        Debug() << "堆栈回溯: <不可用>";
+
+        std::string ms(640, '\0');
+        snprintf(&ms[0], ms.size(), "Ruby 错误: %s\n\n%s\n\n堆栈回溯不可用",
+                 RSTRING_PTR(name), RSTRING_PTR(msg));
+
+        showMsg(ms);
+        return;
+    }
+
+    VALUE bt0 = rb_ary_entry(bt, 0);
+
+    // 创建完整的调试输出
     VALUE ds = rb_sprintf("%" PRIsVALUE ": %" PRIsVALUE " (%" PRIsVALUE ")",
 #if RAPI_MAJOR >= 2
                           bt0, exc, name);
@@ -1428,6 +1491,7 @@ static void showExc(VALUE exc, const BacktraceData &btData) {
 
     char *s = RSTRING_PTR(bt0);
 
+    // 解析堆栈的第一行以获取文件和行号信息
     char line[16];
     std::string file(512, '\0');
 
@@ -1464,15 +1528,51 @@ static void showExc(VALUE exc, const BacktraceData &btData) {
     file.resize(strlen(file.c_str()));
     file = btData.scriptNames.value(file, file);
 
-    std::string ms(640, '\0');
-    snprintf(&ms[0], ms.size(), "Script '%s' line %s: %s occured.\n\n%s",
-             file.c_str(), line, RSTRING_PTR(name), RSTRING_PTR(msg));
+    // 创建并显示美观的错误消息，包括完整的堆栈
+    std::string ms(1024, '\0');  // 增加缓冲区大小以适应更多文本
+    int offset = snprintf(&ms[0], ms.size(),
+                "脚本 '%s' 第 %s 行发生错误: %s\n\n错误信息: %s\n\n堆栈回溯:\n",
+                file.c_str(), line, RSTRING_PTR(name), RSTRING_PTR(msg));
+
+    // 添加更完整的堆栈回溯到错误信息
+    long btlen = RARRAY_LEN(bt);
+    long maxLines = std::min(btlen, 10L); // 最多显示10行堆栈
+
+    for (long i = 0; i < maxLines && offset < ms.size() - 1; ++i) {
+        VALUE btLine = rb_ary_entry(bt, i);
+        if (!NIL_P(btLine)) {
+            const char* btStr = StringValueCStr(btLine);
+
+            // 处理堆栈中的文件名映射
+            std::string currentLine(btStr);
+            size_t firstColon = currentLine.find(':');
+            if (firstColon != std::string::npos) {
+                std::string scriptSection = currentLine.substr(0, firstColon);
+                std::string mapped = btData.scriptNames.value(scriptSection, scriptSection);
+                if (mapped != scriptSection) {
+                    currentLine = mapped + currentLine.substr(firstColon);
+                }
+            }
+
+            offset += snprintf(&ms[offset], ms.size() - offset, "  %s\n", currentLine.c_str());
+        }
+    }
+
+    // 如果堆栈超过了最大行数，显示剩余行数
+    if (maxLines < btlen) {
+        offset += snprintf(&ms[offset], ms.size() - offset,
+                         "  ... (还有 %ld 行未显示)\n", btlen - maxLines);
+    }
+
+    // 确保字符串以正确长度结束
+    ms.resize(strlen(ms.c_str()));
 
     showMsg(ms);
 }
 
 static void mriBindingExecute() {
     Config &conf = shState->rtData().config;
+
 
 #if RAPI_MAJOR >= 2
     /* Normally only a ruby executable would do a sysinit,
@@ -1627,4 +1727,3 @@ static void mriBindingExecute() {
 static void mriBindingTerminate() { throw Exception(Exception::SystemExit, " "); }
 
 static void mriBindingReset() { throw Exception(Exception::Reset, " "); }
-

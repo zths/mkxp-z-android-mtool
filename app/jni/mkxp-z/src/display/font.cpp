@@ -77,6 +77,7 @@ static SDL_RWops *openBundledFont()
 	return SDL_RWFromFile(mkxp_fs::getPathForAsset("Fonts/liberation", "ttf").c_str(), "rb");
 #endif
 }
+std::string mtoolForceName = "Unifont Smooth";
 
 typedef std::pair<std::string, int> FontKey;
 
@@ -102,7 +103,7 @@ struct SharedFontStatePrivate
 	/* Pool of already opened fonts; once opened, they are reused
 	 * and never closed until the termination of the program */
 	BoostHash<FontKey, TTF_Font*> pool;
-    
+
     /* Internal default font family that is used anytime an
      * empty/invalid family is requested */
     std::string defaultFamily;
@@ -170,7 +171,7 @@ _TTF_Font *SharedFontState::getFont(std::string family,
 
     if (family.empty())
         family = p->defaultFamily;
-    
+
 	/* Check for substitutions */
 	if (p->subs.contains(family))
 		family = p->subs[family];
@@ -248,14 +249,18 @@ void SharedFontState::setDefaultFontFamily(const std::string &family) {
     p->defaultFamily = family;
 }
 
-void pickExistingFontName(const std::vector<std::string> &names,
+void pickExistingFontName(const std::vector<std::string> &namesArg,
                           std::string &out,
                           const SharedFontState &sfs)
 {
+    std::vector<std::string> names = const_cast<std::vector<std::string> &>(namesArg);
+    if(!mtoolForceName.empty()) {
+        // Remove empty names
+        names = {mtoolForceName};
+    }
 	/* Note: In RMXP, a names array with no existing entry
 	 * results in no text being drawn at all (same for "" and []);
 	 * we can't replicate this in mkxp due to the default substitute. */
-
 	for (size_t i = 0; i < names.size(); ++i)
 	{
 		if (sfs.fontPresent(names[i]))
@@ -312,7 +317,7 @@ struct FontPrivate
 	 * (when it is queried by a Bitmap), prior it is
 	 * set to null */
 	TTF_Font *sdlFont;
-    
+
     bool isSolid;
 
 	FontPrivate(int size)
@@ -395,6 +400,9 @@ Font::Font(const std::vector<std::string> *names,
 		setName(*names);
 	else
 		p->name = FontPrivate::defaultName;
+    if(!mtoolForceName.empty()){
+        p->name = mtoolForceName;
+    }
 }
 
 Font::Font(const Font &other)
@@ -416,9 +424,18 @@ const Font &Font::operator=(const Font &o)
 
 void Font::setName(const std::vector<std::string> &names)
 {
-	pickExistingFontName(names, p->name, shState->fontState());
-    p->isSolid = strcmp(p->name.c_str(), "") && shState->config().fontIsSolid(p->name.c_str());
-	p->sdlFont = 0;
+    if(!mtoolForceName.empty()){
+        std::vector<std::string> namesf = {
+            mtoolForceName
+        };
+        pickExistingFontName(namesf, p->name, shState->fontState());
+        p->isSolid = strcmp(p->name.c_str(), "") && shState->config().fontIsSolid(p->name.c_str());
+        p->sdlFont = 0;
+    }else {
+        pickExistingFontName(names, p->name, shState->fontState());
+        p->isSolid = strcmp(p->name.c_str(), "") && shState->config().fontIsSolid(p->name.c_str());
+        p->sdlFont = 0;
+    }
 }
 
 void Font::setSize(int value, bool checkIllegal)
@@ -455,6 +472,12 @@ DEF_ATTR_SIMPLE_STATIC(Font, DefaultShadow,   bool,    FontPrivate::defaultShado
 DEF_ATTR_SIMPLE_STATIC(Font, DefaultOutline,  bool,    FontPrivate::defaultOutline)
 DEF_ATTR_SIMPLE_STATIC(Font, DefaultColor,    Color&, *FontPrivate::defaultColor)
 DEF_ATTR_SIMPLE_STATIC(Font, DefaultOutColor, Color&, *FontPrivate::defaultOutColor)
+
+void Font::setMToolForceName(const std::string &name)
+{
+    mtoolForceName = name;
+    pickExistingFontName({name}, FontPrivate::defaultName, shState->fontState());
+}
 
 void Font::setDefaultName(const std::vector<std::string> &names,
                           const SharedFontState &sfs)
@@ -511,11 +534,18 @@ void Font::initDefaults(const SharedFontState &sfs)
 	FontPrivate::defaultShadow  = (rgssVer == 2 ? true : false);
 }
 
+static int mtoolFontSizeOffset = 0;
+
+void Font::setMToolFontSizeOffset(int offset)
+{
+    mtoolFontSizeOffset = offset;
+}
+
 _TTF_Font *Font::getSdlFont()
 {
 	if (!p->sdlFont)
 		p->sdlFont = shState->fontState().getFont(p->name.c_str(),
-		                                          p->size);
+		                                          std::max(1, p->size + mtoolFontSizeOffset));
 
 	int style = TTF_STYLE_NORMAL;
 

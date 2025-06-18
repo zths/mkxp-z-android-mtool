@@ -11,11 +11,14 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.os.Bundle;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.Manifest;
+import android.util.DisplayMetrics;
 import android.view.ActionMode;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -48,6 +51,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 
 public class MKXPZActivity extends SDLActivity {
+    static final String MKXPZ_PLUGIN_VER = "12";
     private static String GAME_PATH = Environment.getExternalStorageDirectory() + "/mkxp-z"; //SDL2 Jni 调用需要的游戏路径
     private static int SERVER_PORT = 54871;
     private static final String TAG = "MToolMKXPZActivity";
@@ -199,6 +203,18 @@ public class MKXPZActivity extends SDLActivity {
                             y = event.getY(0);
 
                             SDLActivity.onNativeMouse(0, action, x, y, false);
+                            return true;
+                        case MotionEvent.ACTION_BUTTON_PRESS:
+                            x = event.getX(0);
+                            y = event.getY(0);
+
+                            SDLActivity.onNativeMouse(event.getActionButton(), MotionEvent.ACTION_DOWN, x, y, false);
+                            return true;
+                        case MotionEvent.ACTION_BUTTON_RELEASE:
+                            x = event.getX(0);
+                            y = event.getY(0);
+
+                            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
                             return true;
 
                         default:
@@ -412,7 +428,6 @@ public class MKXPZActivity extends SDLActivity {
         //在这里创建全屏遮罩用于显示加载状态
         createOverlay(false, getString(R.string.loading_init_game));
 
-        AssetsManager.copyAssets(this, "RTP", Environment.getExternalStorageDirectory() + "/MTool/RTP", null);
         try {
             // 加载MToolViewManager类
             mtoolViewManagerClass = getRemoteClassLoader().loadClass("app.mtool.mtoolmobile.mtool.managers.MToolViewManager");
@@ -424,6 +439,7 @@ public class MKXPZActivity extends SDLActivity {
             justKillMeAndBringUpMTOOL = mtoolViewManagerClass.getMethod("justKillMeAndBringUpMTOOL");
             sendKeyEventToSender = mtoolViewManagerClass.getMethod("sendKeyEventToSender", KeyEvent.class);
             try {
+                PackageContextHelper.writeFileToOtherApp(this, "node/mtoolWebRoot/MKXPZ_PLUGIN_VER", MKXPZ_PLUGIN_VER);
                 GAME_PATH = PackageContextHelper.readFileFromOtherApp(this, "node/mtoolWebRoot/mkxpz_game_path");
                 if (GAME_PATH == null) {
                     throw new Exception("读取游戏路径或端口失败");
@@ -453,6 +469,21 @@ public class MKXPZActivity extends SDLActivity {
             } catch (Exception e) {
                 Log.e(TAG, "初始化失败", e);
                 finish();
+            }
+
+            // 调用init方法
+            Method initMethod = mtoolViewManagerClass.getMethod("init");
+            //mtoolViewManagerClass.getField("initFullScreen").set(mtoolViewManager, false);// initFullScreen 避免全屏模式
+            mtoolViewManagerClass.getField("defaultToGameView").set(mtoolViewManager, true);
+            //mtoolViewManagerClass.getField("startGeckoView").set(mtoolViewManager, false);
+
+            ViewGroup rootLayout = (ViewGroup) initMethod.invoke(mtoolViewManager);
+            Method setGameInputTarget = mtoolViewManagerClass.getMethod("setGameInputTarget", Object.class);
+            setGameInputTarget.invoke(mtoolViewManager, new vInputRecv());
+            if (rootLayout == null) {
+                Log.e(TAG, "MToolViewManager 初始化失败");
+                Toast.makeText(this, "MToolViewManager 初始化失败", Toast.LENGTH_LONG).show();
+                throw new Exception("MToolViewManager 初始化失败 mLayout == null");
             }
 
 
@@ -521,6 +552,9 @@ public class MKXPZActivity extends SDLActivity {
             // Initialize state
             SDL.initialize();
 
+            mLayout = rootLayout;
+
+
             // So we can call stuff from static callbacks
             mSingleton = this;
             SDL.setContext(this);
@@ -529,28 +563,9 @@ public class MKXPZActivity extends SDLActivity {
 
             mHIDDeviceManager = HIDDeviceManager.acquire(this);
 
+
             // Set up the surface
             mSurface = createSDLSurface(getApplication());
-
-
-            // 调用init方法
-            Method initMethod = mtoolViewManagerClass.getMethod("init");
-            mtoolViewManagerClass.getField("initFullScreen").set(mtoolViewManager, false);// initFullScreen 避免全屏模式
-            mtoolViewManagerClass.getField("defaultToGameView").set(mtoolViewManager, true);// initFullScreen 避免全屏模式
-            //mtoolViewManagerClass.getField("startGeckoView").set(mtoolViewManager, false);
-
-            mLayout = (ViewGroup) initMethod.invoke(mtoolViewManager);
-            Method setGameInputTarget = mtoolViewManagerClass.getMethod("setGameInputTarget", Object.class);
-            setGameInputTarget.invoke(mtoolViewManager, new vInputRecv());
-            if (mLayout == null) {
-                Log.e(TAG, "MToolViewManager 初始化失败");
-                Toast.makeText(this, "MToolViewManager 初始化失败", Toast.LENGTH_LONG).show();
-                finish();
-                return;
-            } else {
-                Log.v(TAG, "MToolViewManager 初始化成功");
-            }
-
 
             //mLayout = new RelativeLayout(this);
             mLayout.addView(mSurface, 0);
@@ -876,35 +891,6 @@ public class MKXPZActivity extends SDLActivity {
     private TextView tvOverlayPercent;
     private ProgressBar overlayProgressBar;
 
-    // FPS显示相关
-    private static TextView fpsTextView;
-
-    /**
-     * 设置FPS显示的可见性
-     * 被JNI调用
-     *
-     * @param on 是否显示FPS
-     */
-    static void setFPSVisibility(boolean on) {
-        if (fpsTextView == null && instance != null) {
-            instance.initFPSView();
-        }
-        if (fpsTextView != null) {
-            fpsTextView.post(() -> fpsTextView.setVisibility(on ? View.VISIBLE : View.GONE));
-        }
-    }
-
-    /**
-     * 更新FPS数值
-     * 被JNI调用
-     *
-     * @param fps 当前帧率
-     */
-    static void updateFPSText(int fps) {
-        if (fpsTextView != null) {
-            fpsTextView.post(() -> fpsTextView.setText("FPS: " + fps));
-        }
-    }
 
     /**
      * 创建覆盖层显示，可以用作加载状态或进度显示
@@ -970,6 +956,33 @@ public class MKXPZActivity extends SDLActivity {
         });
     }
 
+    static void forceResizeSurface() {
+        Display mDisplay = ((WindowManager) mSingleton.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        int width = (int) mSurface.getWidth();
+        int height = (int) mSurface.getHeight();
+        int nDeviceWidth = width;
+        int nDeviceHeight = height;
+        try {
+            if (Build.VERSION.SDK_INT >= 17 /* Android 4.2 (JELLY_BEAN_MR1) */) {
+                DisplayMetrics realMetrics = new DisplayMetrics();
+                mDisplay.getRealMetrics(realMetrics);
+                nDeviceWidth = realMetrics.widthPixels;
+                nDeviceHeight = realMetrics.heightPixels;
+            }
+        } catch (Exception ignored) {
+        }
+        synchronized (SDLActivity.getContext()) {
+            // In case we're waiting on a size change after going fullscreen, send a notification.
+            SDLActivity.getContext().notifyAll();
+        }
+        SDLActivity.nativeSetScreenResolution(width, height, nDeviceWidth, nDeviceHeight, mDisplay.getRefreshRate());
+        SDLActivity.onNativeResize();
+
+        SDLActivity.onNativeSurfaceChanged();
+        SDLActivity.mNextNativeState = SDLActivity.NativeState.RESUMED;
+        SDLActivity.handleNativeState();
+    }
+
     /**
      * 更新加载状态
      *
@@ -985,6 +998,8 @@ public class MKXPZActivity extends SDLActivity {
             if (statusCode == 0) {
                 // 加载完成，移除遮罩
                 instance.removeOverlay();
+                mSurface.getHolder().setFormat(PixelFormat.RGB_565);
+                mSurface.getHolder().setFormat(PixelFormat.RGBA_8888);
                 Log.i(TAG, "游戏加载完成");
             } else {
                 // 确保遮罩已创建
@@ -1038,6 +1053,36 @@ public class MKXPZActivity extends SDLActivity {
     public static void notifyLoadingStatus(int statusCode) {
         Log.i(TAG, "收到加载状态通知: " + statusCode);
         updateLoadingStatus(statusCode);
+    }
+
+
+    // FPS显示相关
+    private static TextView fpsTextView;
+
+    /**
+     * 设置FPS显示的可见性
+     * 被JNI调用
+     *
+     * @param on 是否显示FPS
+     */
+    static void setFPSVisibility(boolean on) {
+        if (fpsTextView == null && instance != null) {
+            instance.initFPSView();
+        }
+        if (fpsTextView != null) {
+            fpsTextView.post(() -> fpsTextView.setVisibility(on ? View.VISIBLE : View.GONE));
+        }
+    }
+    /**
+     * 更新FPS数值
+     * 被JNI调用
+     *
+     * @param fps 当前帧率
+     */
+    static void updateFPSText(int fps) {
+        if (fpsTextView != null) {
+            fpsTextView.post(() -> fpsTextView.setText("FPS: " + fps));
+        }
     }
 
     /**
